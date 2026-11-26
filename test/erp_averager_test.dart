@@ -14,12 +14,15 @@ void main() {
     final averager = ErpAverager(sampleRate: 10);
     averager.push(sample(4));
     averager.mark('Rare');
+    var versionBefore = averager.version.value;
     for (var index = 0; index < 8; index++) {
       averager.push(sample(6.0 + index));
     }
 
     expect(averager.counts['Rare'], 1);
+    expect(averager.version.value, versionBefore + 1);
     expect(averager.averages['Rare']!.first, 0);
     expect(averager.averages['Rare']![1], 2);
+    averager.dispose();
   });
 }

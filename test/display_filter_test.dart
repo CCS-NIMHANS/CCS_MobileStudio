@@ -81,4 +81,38 @@ void main() {
     expect(first.single.abs(), lessThan(1e-6));
     expect(second.single.abs(), lessThan(1e-6));
   });
+
+  test('supports CAR montage and per-channel filter overrides with polarity invert', () {
+    const labels = ['F3', 'C3', 'O1'];
+    final car = DisplayMontage.apply(
+      const [10.0, 20.0, 30.0],
+      labels,
+      const {'F3': DisplayMontage.carReferenceKey},
+    );
+    expect(car, [-10.0, 20.0, 30.0]);
+    expect(
+      DisplayMontage.labels(labels, const {'F3': DisplayMontage.carReferenceKey}),
+      ['F3-CAR', 'C3', 'O1'],
+    );
+
+    final filter = DisplayFilter();
+    const settings = DisplayFilterSettings(
+      channelOverrides: {
+        'F3': ChannelFilterConfig(
+          highPassEnabled: false,
+          lowPassEnabled: false,
+          notchEnabled: false,
+          invertPolarity: true,
+        ),
+      },
+    );
+    final out = filter.process(
+      const [42.0, 42.0],
+      labels: const ['F3', 'C3'],
+      sampleRate: 250,
+      settings: settings,
+    );
+    expect(out[0], -42.0);
+    expect(out[1].abs(), lessThan(1e-6));
+  });
 }

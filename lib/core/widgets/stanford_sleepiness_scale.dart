@@ -2,6 +2,8 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:path_provider/path_provider.dart';
 
+import '../theme/studio_theme.dart';
+
 class StanfordSleepinessScale {
   static Future<void> saveScore(
     String appName,
@@ -82,10 +84,10 @@ class _StanfordSleepinessScaleDialogState
   @override
   Widget build(BuildContext context) {
     return AlertDialog(
-      backgroundColor: const Color(0xFF1E293B),
+      backgroundColor: StudioColors.card,
       title: const Text(
         'Stanford Sleepiness Scale',
-        style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+        style: TextStyle(color: StudioColors.textPrimary, fontWeight: FontWeight.bold),
       ),
       content: SingleChildScrollView(
         child: Column(
@@ -94,7 +96,7 @@ class _StanfordSleepinessScaleDialogState
           children: [
             const Text(
               'Please select the statement that best describes how you feel right now:',
-              style: TextStyle(color: Colors.white70, fontSize: 16),
+              style: TextStyle(color: StudioColors.textSecondary, fontSize: 16),
             ),
             const SizedBox(height: 16),
             ...List.generate(_scaleItems.length, (index) {
@@ -102,11 +104,11 @@ class _StanfordSleepinessScaleDialogState
               return RadioListTile<int>(
                 title: Text(
                   _scaleItems[index],
-                  style: const TextStyle(color: Colors.white, fontSize: 14),
+                  style: const TextStyle(color: StudioColors.textPrimary, fontSize: 14),
                 ),
                 value: score,
                 groupValue: _selectedScore,
-                activeColor: const Color(0xFF14B8A6),
+                activeColor: StudioColors.teal,
                 onChanged: (val) {
                   setState(() {
                     _selectedScore = val;
@@ -136,8 +138,8 @@ class _StanfordSleepinessScaleDialogState
             'Submit',
             style: TextStyle(
               color: _selectedScore == null
-                  ? Colors.blueGrey
-                  : const Color(0xFF14B8A6),
+                  ? StudioColors.textMuted
+                  : StudioColors.teal,
               fontSize: 16,
               fontWeight: FontWeight.bold,
             ),

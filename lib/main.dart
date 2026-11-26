@@ -11,10 +11,12 @@ import 'core/services/channel_config_service.dart';
 import 'core/services/permission_service.dart';
 import 'core/services/session_manager.dart';
 import 'core/services/alert_service.dart';
+import 'core/services/av_sync_service.dart';
 import 'core/services/nirs_acquisition_service.dart';
 import 'core/services/multi_stream_lsl_service.dart';
 import 'core/services/multi_device_acquisition_service.dart';
 import 'core/eeg/nirs_edf_recorder.dart';
+import 'core/theme/studio_theme.dart';
 import 'modules/home/home_screen.dart';
 import 'modules/standalone/standalone_screen.dart';
 import 'modules/nidra/nidra_screen.dart';
@@ -23,6 +25,7 @@ import 'modules/adaptive_wm/wm_screen.dart';
 import 'modules/heartsync/heartsync_screen.dart';
 import 'modules/hrd/hrd_screen.dart';
 import 'modules/hep/hep_screen.dart';
+import 'modules/speech_tracking/speech_tracking_screen.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -91,6 +94,7 @@ class CcsMobileStudioApp extends StatelessWidget {
         ChangeNotifierProvider<NirsEdfRecorder>(
           create: (_) => NirsEdfRecorder(),
         ),
+        ChangeNotifierProvider<AvSyncService>(create: (_) => AvSyncService()),
 
         // ── BLE Coordinator (exclusive streaming access) ─────────────────
         ChangeNotifierProxyProvider<AcquisitionService, BleCoordinator>(
@@ -100,18 +104,20 @@ class CcsMobileStudioApp extends StatelessWidget {
         ),
 
         // ── Session Manager (EDF lifecycle, segment tracking) ─────────────
-        ChangeNotifierProxyProvider5<
+        ChangeNotifierProxyProvider6<
           AcquisitionService,
           EdfRecorder,
           SettingsService,
           MultiStreamLslService,
           MultiDeviceAcquisitionService,
+          AvSyncService,
           SessionManager
         >(
           create: (_) => SessionManager(),
-          update: (_, acq, rec, settings, multiLsl, multiDevice, prev) =>
+          update: (_, acq, rec, settings, multiLsl, multiDevice, avSync, prev) =>
               (prev ?? SessionManager())
-                ..update(acq, rec, settings, multiLsl, multiDevice),
+                ..update(acq, rec, settings, multiLsl, multiDevice)
+                ..attachAvSync(avSync),
         ),
       ],
       child: Consumer<SettingsService>(
@@ -127,14 +133,7 @@ class CcsMobileStudioApp extends StatelessWidget {
               child: child ?? const SizedBox.shrink(),
             );
           },
-          theme: ThemeData(
-            colorScheme: ColorScheme.fromSeed(
-              seedColor: const Color(0xFF1565C0),
-              brightness: Brightness.dark,
-            ),
-            useMaterial3: true,
-            fontFamily: 'Roboto',
-          ),
+          theme: StudioTheme.light(),
           home: const HomeScreen(),
           routes: {
             '/standalone': (_) => const StandaloneScreen(),
@@ -144,6 +143,7 @@ class CcsMobileStudioApp extends StatelessWidget {
             '/heartsync': (_) => const HeartSyncScreen(),
             '/hrd': (_) => const HrdScreen(),
             '/hep': (_) => const HepScreen(),
+            '/speech-tracking': (_) => const SpeechTrackingScreen(),
           },
         ),
       ),

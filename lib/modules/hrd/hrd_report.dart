@@ -32,7 +32,7 @@ Future<List<String>> writeHrdReport(
       build: (_) => pw.Column(
         crossAxisAlignment: pw.CrossAxisAlignment.start,
         children: [
-          pw.Header(level: 0, text: 'Heart Rate Detection - $subject'),
+          pw.Header(level: 0, text: 'Heart Rate Discrimination - $subject'),
           pw.Text(
             'Response mode: ${rows.first['ResponseMode'] ?? 'buttons (legacy)'}',
           ),

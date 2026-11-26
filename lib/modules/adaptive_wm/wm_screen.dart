@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../core/theme/studio_theme.dart';
 import 'package:provider/provider.dart';
 
 import '../../core/eeg/acquisition_service.dart';
@@ -125,7 +126,7 @@ class _WmScreenState extends State<WmScreen> {
   Widget build(BuildContext context) {
     final acq = context.watch<AcquisitionService>();
     final settings = context.watch<SettingsService>();
-    final lightTeal = const Color(0xFF14B8A6);
+    final lightTeal = StudioColors.teal;
 
     if (_subjectController.text != settings.subjectCode) {
       _subjectController.value = _subjectController.value.copyWith(
@@ -145,15 +146,15 @@ class _WmScreenState extends State<WmScreen> {
         }
       },
       child: Scaffold(
-        backgroundColor: const Color(0xFF0B0F19),
+        backgroundColor: StudioColors.canvas,
         appBar: AppBar(
           title: const Text(
             'Adaptive Working Memory (N-Back)',
-            style: TextStyle(color: Colors.white),
+            style: TextStyle(color: StudioColors.textPrimary),
           ),
-          backgroundColor: const Color(0xFF111827),
+          backgroundColor: StudioColors.surface,
           elevation: 0,
-          iconTheme: const IconThemeData(color: Colors.white),
+          iconTheme: const IconThemeData(color: StudioColors.textPrimary),
         ),
         body: SafeArea(
           child: SingleChildScrollView(
@@ -181,7 +182,7 @@ class _WmScreenState extends State<WmScreen> {
                       icon: const Icon(Icons.waves, size: 18),
                       label: const Text('Full EEG Viewer (Signal Check)'),
                       style: ElevatedButton.styleFrom(
-                        backgroundColor: const Color(0xFF1E293B),
+                        backgroundColor: StudioColors.card,
                         foregroundColor: lightTeal,
                         padding: const EdgeInsets.symmetric(
                           horizontal: 16,
@@ -221,12 +222,12 @@ class _WmScreenState extends State<WmScreen> {
                   children: [
                     TextField(
                       controller: _subjectController,
-                      style: const TextStyle(color: Colors.white),
+                      style: const TextStyle(color: StudioColors.textPrimary),
                       decoration: InputDecoration(
                         labelText: 'Participant ID',
-                        labelStyle: const TextStyle(color: Colors.white70),
+                        labelStyle: const TextStyle(color: StudioColors.textSecondary),
                         filled: true,
-                        fillColor: const Color(0xFF0B0F19),
+                        fillColor: StudioColors.canvas,
                         border: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(10),
                         ),
@@ -321,12 +322,12 @@ class _WmScreenState extends State<WmScreen> {
                     SwitchListTile(
                       title: const Text(
                         'Record Connected Biopotentials',
-                        style: TextStyle(color: Colors.white, fontSize: 14),
+                        style: TextStyle(color: StudioColors.textPrimary, fontSize: 14),
                       ),
                       subtitle: const Text(
                         'On: save enabled EEG/ECG/EMG/PPG/fNIRS streams. '
                         'Off: run task-only and still save behavioral results.',
-                        style: TextStyle(color: Colors.white54, fontSize: 12),
+                        style: TextStyle(color: StudioColors.textMuted, fontSize: 12),
                       ),
                       value: _recordEeg,
                       activeColor: lightTeal,
@@ -348,14 +349,14 @@ class _WmScreenState extends State<WmScreen> {
                   icon: const Icon(
                     Icons.play_arrow,
                     size: 28,
-                    color: Colors.black,
+                    color: StudioColors.textPrimary,
                   ),
                   label: const Text(
                     'Start Adaptive WM Battery',
                     style: TextStyle(
                       fontSize: 18,
                       fontWeight: FontWeight.bold,
-                      color: Colors.black,
+                      color: StudioColors.textPrimary,
                     ),
                   ),
                   style: ElevatedButton.styleFrom(
@@ -384,21 +385,21 @@ class _WmScreenState extends State<WmScreen> {
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: const Color(0xFF1E293B),
+        color: StudioColors.card,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Colors.white12),
+        border: Border.all(color: StudioColors.border),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
             children: [
-              Icon(icon, color: const Color(0xFF14B8A6), size: 22),
+              Icon(icon, color: StudioColors.teal, size: 22),
               const SizedBox(width: 10),
               Text(
                 title,
                 style: const TextStyle(
-                  color: Colors.white,
+                  color: StudioColors.textPrimary,
                   fontSize: 16,
                   fontWeight: FontWeight.bold,
                 ),
@@ -427,18 +428,18 @@ class _WmScreenState extends State<WmScreen> {
               value: item,
               child: Text(
                 '$item $suffix',
-                style: const TextStyle(color: Colors.white),
+                style: const TextStyle(color: StudioColors.textPrimary),
               ),
             ),
           )
           .toList(),
       onChanged: onChanged,
-      dropdownColor: const Color(0xFF1E293B),
+      dropdownColor: StudioColors.card,
       decoration: InputDecoration(
         labelText: label,
-        labelStyle: const TextStyle(color: Colors.white70),
+        labelStyle: const TextStyle(color: StudioColors.textSecondary),
         filled: true,
-        fillColor: const Color(0xFF0B0F19),
+        fillColor: StudioColors.canvas,
         border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
         contentPadding: const EdgeInsets.symmetric(
           horizontal: 14,

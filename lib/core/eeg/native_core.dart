@@ -92,6 +92,13 @@ class NativeCore {
           Bool Function(Pointer<Void>),
           bool Function(Pointer<Void>)
         >('tn_edf_close');
+    try {
+      _edfPushAnnotation = _lib
+          .lookupFunction<
+            Int32 Function(Pointer<Void>, Double, Double, Pointer<Utf8>),
+            int Function(Pointer<Void>, double, double, Pointer<Utf8>)
+          >('tn_edf_push_annotation');
+    } catch (_) {}
     _setScoringStep = _lib
         .lookupFunction<
           Void Function(Pointer<Void>, Double),
@@ -196,6 +203,8 @@ class NativeCore {
   _edfOpen;
   late final bool Function(Pointer<Void>, Pointer<Double>, int) _edfPush;
   late final bool Function(Pointer<Void>) _edfClose;
+  int Function(Pointer<Void>, double, double, Pointer<Utf8>)?
+  _edfPushAnnotation;
   late final void Function(Pointer<Void>, double) _setScoringStep;
   Pointer<Void> Function(
     Pointer<Utf8>,
@@ -352,6 +361,22 @@ class NativeCore {
   bool closeEdf(Pointer<Void> writer) {
     if (writer == nullptr) return false;
     return _edfClose(writer);
+  }
+
+  bool pushEdfAnnotation(
+    Pointer<Void> writer,
+    double onsetSec,
+    double durationSec,
+    String label,
+  ) {
+    final fn = _edfPushAnnotation;
+    if (writer == nullptr || fn == null || label.trim().isEmpty) return false;
+    final labelPtr = label.toNativeUtf8();
+    try {
+      return fn(writer, onsetSec, durationSec, labelPtr) == 1;
+    } finally {
+      calloc.free(labelPtr);
+    }
   }
 
   Pointer<Void> openEdfWithLabels(

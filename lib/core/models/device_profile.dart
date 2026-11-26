@@ -189,6 +189,8 @@ class DeviceProfile {
     this.autoConnect = false,
     this.startCommand = '',
     this.delimiter = ',',
+    this.projectTag = '',
+    this.isDefaultForHardware = false,
   }) : streams = List<SignalStreamProfile>.from(streams);
 
   String id;
@@ -202,9 +204,25 @@ class DeviceProfile {
   bool autoConnect;
   String startCommand;
   String delimiter;
+  String projectTag;
+  bool isDefaultForHardware;
 
   Iterable<SignalStreamProfile> get enabledStreams =>
       streams.where((stream) => stream.enabled);
+
+  DeviceProfile cloneWith({
+    required String id,
+    required String name,
+    String? projectTag,
+    bool isDefaultForHardware = false,
+  }) {
+    final copy = DeviceProfile.fromJson(toJson());
+    copy.id = id;
+    copy.name = name;
+    copy.projectTag = projectTag ?? copy.projectTag;
+    copy.isDefaultForHardware = isDefaultForHardware;
+    return copy;
+  }
 
   Map<String, dynamic> toJson() => {
     'id': id,
@@ -218,6 +236,8 @@ class DeviceProfile {
     'autoConnect': autoConnect,
     'startCommand': startCommand,
     'delimiter': delimiter,
+    'projectTag': projectTag,
+    'isDefaultForHardware': isDefaultForHardware,
   };
 
   factory DeviceProfile.fromJson(Map<String, dynamic> json) {
@@ -247,6 +267,8 @@ class DeviceProfile {
       autoConnect: json['autoConnect'] as bool? ?? false,
       startCommand: json['startCommand'] as String? ?? '',
       delimiter: json['delimiter'] as String? ?? ',',
+      projectTag: json['projectTag'] as String? ?? '',
+      isDefaultForHardware: json['isDefaultForHardware'] as bool? ?? false,
     );
   }
 }

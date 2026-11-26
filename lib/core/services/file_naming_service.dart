@@ -69,29 +69,29 @@ class FileNamingService {
 
   // ── Path builders ───────────────────────────────────────────────────────────
 
-  /// EDF recording directory (internal app storage).
-  static Future<Directory> _recordingsDir() async {
-    final configured = _configuredOutputDirectory;
-    if (configured != null) {
-      final dir = Directory('$configured/recordings');
+  static Future<Directory> _stagingBaseDirectory() async {
+    try {
+      return await getApplicationDocumentsDirectory();
+    } catch (_) {
+      final dir = Directory(
+        '${Directory.systemTemp.path}/ccs_mobile_studio_staging',
+      );
       if (!await dir.exists()) await dir.create(recursive: true);
       return dir;
     }
-    final base = await getApplicationDocumentsDirectory();
+  }
+
+  /// EDF recording directory (internal app storage, never inside user output folder).
+  static Future<Directory> _recordingsDir() async {
+    final base = await _stagingBaseDirectory();
     final dir = Directory('${base.path}/recordings');
     if (!await dir.exists()) await dir.create(recursive: true);
     return dir;
   }
 
-  /// Behavioural data directory (internal app storage).
+  /// Behavioural data directory (internal app storage, never inside user output folder).
   static Future<Directory> _dataDir() async {
-    final configured = _configuredOutputDirectory;
-    if (configured != null) {
-      final dir = Directory('$configured/data');
-      if (!await dir.exists()) await dir.create(recursive: true);
-      return dir;
-    }
-    final base = await getApplicationDocumentsDirectory();
+    final base = await _stagingBaseDirectory();
     final dir = Directory('${base.path}/data');
     if (!await dir.exists()) await dir.create(recursive: true);
     return dir;
@@ -223,7 +223,7 @@ class FileNamingService {
         .replaceFirst(RegExp(r'_stream-[A-Za-z0-9_-]+(_part\d+)?$'), '')
         .replaceFirst(RegExp(r'_device-[A-Za-z0-9_-]+(_part\d+)?$'), '')
         .replaceFirst(RegExp(r'_nirs(_part\d+)?$'), '')
-        .replaceFirst(RegExp(r'_markers$'), '')
+        .replaceFirst(RegExp(r'_(markers|video|av_sync|speech_tracking)$'), '')
         .replaceFirst(RegExp(r'_part\d+$'), '');
   }
 

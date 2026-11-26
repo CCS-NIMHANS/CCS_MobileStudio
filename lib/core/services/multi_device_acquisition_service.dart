@@ -64,6 +64,8 @@ class MultiDeviceAcquisitionService extends ChangeNotifier {
   bool get isScanning =>
       (_scanner?.currentState == AcquisitionState.scanning) ||
       (_primary?.currentState == AcquisitionState.scanning);
+  String? get lastScanError =>
+      _primary?.lastScanError ?? _scanner?.lastScanError;
   bool get isBusy =>
       isScanning ||
       _pendingDeviceIds.isNotEmpty ||
@@ -79,12 +81,34 @@ class MultiDeviceAcquisitionService extends ChangeNotifier {
         _pendingDeviceIds.contains(deviceId);
   }
 
+  List<DeviceProfile> matchingProfilesFor(EegDevice device) =>
+      _primary?.matchingProfilesFor(device) ?? const [];
+
+  void switchPrimaryProfile(DeviceProfile profile) {
+    _primary?.switchActiveProfile(profile);
+    notifyListeners();
+  }
+
+  void switchDeviceProfile(String deviceId, DeviceProfile profile) {
+    if (_primary?.connectedDeviceId == deviceId) {
+      _primary?.switchActiveProfile(profile);
+      notifyListeners();
+      return;
+    }
+    _secondary[deviceId]?.switchActiveProfile(profile);
+    notifyListeners();
+  }
+
   void update(
     AcquisitionService primary,
     SettingsService settings,
     AlertService alerts,
   ) {
-    _primary = primary;
+    if (_primary != primary) {
+      _primary?.removeListener(notifyListeners);
+      _primary = primary;
+      _primary?.addListener(notifyListeners);
+    }
     _settings = settings;
     _alerts = alerts;
     for (final service in _secondary.values) {
@@ -94,11 +118,11 @@ class MultiDeviceAcquisitionService extends ChangeNotifier {
     }
   }
 
-  Future<void> scan() async {
+  Future<void> scan({bool includeAllBle = false}) async {
     final primary = _primary;
     if (primary == null) return;
     if (primary.currentState != AcquisitionState.streaming) {
-      await primary.scan(autoConnect: false);
+      await primary.scan(autoConnect: false, includeAllBle: includeAllBle);
       return;
     }
     final scanner = _scanner ??= AcquisitionService();
@@ -107,7 +131,12 @@ class MultiDeviceAcquisitionService extends ChangeNotifier {
       ..updateAlertService(_alerts);
     scanner.removeListener(notifyListeners);
     scanner.addListener(notifyListeners);
-    await scanner.scan(autoConnect: false);
+    await scanner.scan(autoConnect: false, includeAllBle: includeAllBle);
+  }
+
+  Future<void> stopScan() async {
+    await _primary?.stopScan();
+    await _scanner?.stopScan();
   }
 
   Future<void> connect(EegDevice device) async {
@@ -253,6 +282,7 @@ class MultiDeviceAcquisitionService extends ChangeNotifier {
       service.removeListener(notifyListeners);
       service.dispose();
     }
+    _primary?.removeListener(notifyListeners);
     _scanner?.removeListener(notifyListeners);
     _scanner?.dispose();
     _samples.close();

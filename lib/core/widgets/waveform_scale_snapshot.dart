@@ -1,3 +1,7 @@
+import 'dart:typed_data';
+
+import '../eeg/ring_buffer.dart';
+
 /// Fixed display scales captured from the currently rendered autoscale values.
 class WaveformScaleSnapshot {
   const WaveformScaleSnapshot({
@@ -49,5 +53,28 @@ class RobustWaveformAutoscale {
       deviations.length - 1,
     );
     return deviations[index];
+  }
+
+  static double amplitudeFromRing(
+    Float64RingBuffer ring, {
+    required int visiblePoints,
+    double percentile = 0.98,
+  }) {
+    if (ring.length < 4 || visiblePoints < 4) return 0;
+    final visibleCount = visiblePoints.clamp(4, ring.length);
+    final secondHalfCount = (visibleCount / 2).ceil().clamp(2, ring.length);
+    final segment = Float64List(secondHalfCount);
+    ring.copyRecent(secondHalfCount, segment);
+    segment.sort();
+    final median = segment[segment.length ~/ 2];
+    for (var i = 0; i < segment.length; i++) {
+      segment[i] = (segment[i] - median).abs();
+    }
+    segment.sort();
+    final index = ((segment.length - 1) * percentile).round().clamp(
+      0,
+      segment.length - 1,
+    );
+    return segment[index];
   }
 }

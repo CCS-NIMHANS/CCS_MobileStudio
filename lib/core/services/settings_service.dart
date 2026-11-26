@@ -140,6 +140,7 @@ class SettingsService extends ChangeNotifier {
     ModuleType.hrd,
     ModuleType.hep,
     ModuleType.resonance,
+    ModuleType.speechTracking,
   ];
 
   // ── Paradigm defaults ─────────────────────────────────────────────────────
@@ -319,6 +320,9 @@ class SettingsService extends ChangeNotifier {
       if (!json.containsKey('hrdSettings') &&
           !studySequence.contains(ModuleType.hrd)) {
         studySequence.add(ModuleType.hrd);
+      }
+      if (!studySequence.contains(ModuleType.speechTracking)) {
+        studySequence.add(ModuleType.speechTracking);
       }
       _loadParadigmDefaults(json);
       lastDeviceId = json['lastDeviceId'] as String?;
@@ -695,6 +699,9 @@ class SettingsService extends ChangeNotifier {
     if (!json.containsKey('hrdSettings') &&
         !studySequence.contains(ModuleType.hrd)) {
       studySequence.add(ModuleType.hrd);
+    }
+    if (!studySequence.contains(ModuleType.speechTracking)) {
+      studySequence.add(ModuleType.speechTracking);
     }
     _loadParadigmDefaults(json);
     lastDeviceId = json['lastDeviceId'] as String?;
@@ -1164,6 +1171,104 @@ class SettingsService extends ChangeNotifier {
     save();
   }
 
+  void setDefaultDeviceProfile(String profileId) {
+    final target = profileById(profileId);
+    if (target == null) return;
+    final pattern = target.advertisedNamePattern.trim().toUpperCase();
+    for (final profile in deviceProfiles) {
+      if (profile.transport == target.transport &&
+          profile.advertisedNamePattern.trim().toUpperCase() == pattern) {
+        profile.isDefaultForHardware = profile.id == profileId;
+      }
+    }
+    target.enabled = true;
+    target.isDefaultForHardware = true;
+    if (target.id == 'xamp_l10') {
+      xampPrefix = target.advertisedNamePattern;
+    } else if (target.id == 'orbit') {
+      orbitPrefix = target.advertisedNamePattern;
+    }
+    notifyListeners();
+    save();
+  }
+
+  DeviceProfile duplicateDeviceProfile(
+    String sourceId, {
+    String? newName,
+    String? projectTag,
+  }) {
+    final source = profileById(sourceId) ?? deviceProfiles.first;
+    final stamp = DateTime.now().microsecondsSinceEpoch;
+    final copy = source.cloneWith(
+      id: '${source.id}_$stamp',
+      name: newName?.trim().isNotEmpty == true
+          ? newName!.trim()
+          : '${source.name} Copy',
+      projectTag: projectTag ?? source.projectTag,
+      isDefaultForHardware: false,
+    );
+    copy.enabled = true;
+    deviceProfiles.add(copy);
+    notifyListeners();
+    save();
+    return copy;
+  }
+
+  Future<String?> exportDeviceProfileJson(
+    DeviceProfile profile, {
+    String? destinationPath,
+  }) async {
+    final safeName = profile.name
+        .toLowerCase()
+        .replaceAll(RegExp(r'[^a-z0-9]+'), '_')
+        .replaceAll(RegExp(r'^_|_$'), '');
+    final defaultName = '${safeName.isEmpty ? 'device' : safeName}_profile.json';
+    String? targetPath = destinationPath;
+    if (targetPath == null) {
+      if (Platform.isAndroid) {
+        final dir = await FileNamingService.outputRootDirectory();
+        if (!await dir.exists()) await dir.create(recursive: true);
+        targetPath = '${dir.path}/$defaultName';
+      } else {
+        targetPath = await FilePicker.platform.saveFile(
+          dialogTitle: 'Export Device Profile JSON',
+          fileName: defaultName,
+          type: FileType.custom,
+          allowedExtensions: const ['json'],
+        );
+      }
+    }
+    if (targetPath == null) return null;
+    const encoder = JsonEncoder.withIndent('  ');
+    await File(targetPath).writeAsString(encoder.convert(profile.toJson()));
+    return targetPath;
+  }
+
+  Future<DeviceProfile?> importDeviceProfileJson({String? sourcePath}) async {
+    final pickedPath =
+        sourcePath ??
+        (await FilePicker.platform.pickFiles(
+          dialogTitle: 'Import Device Profile JSON',
+          type: FileType.custom,
+          allowedExtensions: const ['json'],
+        ))?.files.single.path;
+    if (pickedPath == null) return null;
+    final decoded = jsonDecode(await File(pickedPath).readAsString());
+    if (decoded is! Map) {
+      throw const FormatException('Profile JSON must contain an object.');
+    }
+    final imported = DeviceProfile.fromJson(Map<String, dynamic>.from(decoded));
+    final stamp = DateTime.now().microsecondsSinceEpoch;
+    if (profileById(imported.id) != null) {
+      imported.id = '${imported.id}_$stamp';
+      imported.isDefaultForHardware = false;
+    }
+    deviceProfiles.add(imported);
+    notifyListeners();
+    await save();
+    return imported;
+  }
+
   Map<String, List<String>> _stringListMap(
     Object? raw,
     Map<String, List<String>> fallback,
@@ -1209,6 +1314,7 @@ class SettingsService extends ChangeNotifier {
             ModuleType.hrd,
             ModuleType.hep,
             ModuleType.resonance,
+            ModuleType.speechTracking,
           ]
         : parsed;
   }
@@ -1225,6 +1331,7 @@ class SettingsService extends ChangeNotifier {
             ModuleType.hrd,
             ModuleType.hep,
             ModuleType.resonance,
+            ModuleType.speechTracking,
           ]
         : List<ModuleType>.from(modules);
     notifyListeners();

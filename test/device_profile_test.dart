@@ -100,4 +100,24 @@ void main() {
     });
     expect(legacy.channelEnabled, [true, true]);
   });
+
+  test('projectTag, default flag, and cloneWith support multi-profile workflows', () {
+    final base = defaultDeviceProfiles().first
+      ..projectTag = 'Resting EEG'
+      ..isDefaultForHardware = true;
+    final restored = DeviceProfile.fromJson(base.toJson());
+    expect(restored.projectTag, 'Resting EEG');
+    expect(restored.isDefaultForHardware, isTrue);
+
+    final copy = restored.cloneWith(
+      id: 'xamp_sleep',
+      name: 'xAMP Sleep PSG',
+      projectTag: 'Sleep PSG',
+    );
+    expect(copy.id, 'xamp_sleep');
+    expect(copy.name, 'xAMP Sleep PSG');
+    expect(copy.projectTag, 'Sleep PSG');
+    expect(copy.isDefaultForHardware, isFalse);
+    expect(copy.streams.single.channelCount, 16);
+  });
 }

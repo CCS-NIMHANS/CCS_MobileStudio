@@ -119,7 +119,7 @@ class _HrdScreenState extends State<HrdScreen> {
   );
   @override
   Widget build(BuildContext context) => Scaffold(
-    appBar: AppBar(title: const Text('Heart Rate Detection • Bayesian Psi')),
+    appBar: AppBar(title: const Text('Heart Rate Discrimination • Bayesian Psi')),
     body: ListView(
       padding: const EdgeInsets.all(24),
       children: [

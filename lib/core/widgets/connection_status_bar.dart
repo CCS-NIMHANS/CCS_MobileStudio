@@ -1,14 +1,20 @@
+import 'dart:async';
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+
 import '../eeg/acquisition_service.dart';
+import '../models/device_profile.dart';
+import '../services/multi_device_acquisition_service.dart';
+import '../services/multi_stream_lsl_service.dart';
 import '../services/nirs_acquisition_service.dart';
 import '../services/session_manager.dart';
-import '../services/multi_stream_lsl_service.dart';
-import '../services/multi_device_acquisition_service.dart';
 import '../services/settings_service.dart';
+import '../theme/studio_theme.dart';
 
-/// Unified connection status bar showing device connection state,
-/// active stream name, battery/signal if available, and disconnect/reconnect controls.
+/// Unified connection status bar showing device connection state, active
+/// stream summary, and quick connect/manage/disconnect controls.
 class ConnectionStatusBar extends StatelessWidget {
   const ConnectionStatusBar({
     super.key,
@@ -18,6 +24,7 @@ class ConnectionStatusBar extends StatelessWidget {
     this.onDisconnectEeg,
     this.onDisconnectNirs,
     this.onOpenConnectDialog,
+    this.compact = false,
   });
 
   final AcquisitionState eegState;
@@ -26,6 +33,7 @@ class ConnectionStatusBar extends StatelessWidget {
   final VoidCallback? onDisconnectEeg;
   final VoidCallback? onDisconnectNirs;
   final VoidCallback? onOpenConnectDialog;
+  final bool compact;
 
   @override
   Widget build(BuildContext context) {
@@ -51,6 +59,7 @@ class ConnectionStatusBar extends StatelessWidget {
         multiDevice.isBusy ||
         nirsConnecting ||
         multiLsl.state == AcquisitionState.connecting;
+
     bool rateIsDegraded(AcquisitionService service) {
       final received = service.deliveredSampleRate;
       return received != null && received < service.sampleRate * 0.8;
@@ -60,48 +69,111 @@ class ConnectionStatusBar extends StatelessWidget {
         (eegConnected && rateIsDegraded(eegService)) ||
         secondaryConnected.any(rateIsDegraded);
 
-    Color statusColor;
-    String statusText;
-    IconData statusIcon;
+    final Color statusColor;
+    final String statusText;
+    final IconData statusIcon;
 
     if (anythingConnected) {
-      statusColor = rateDegraded
-          ? const Color(0xFFFBBF24)
-          : const Color(0xFF10B981);
-      statusIcon = rateDegraded ? Icons.warning_amber : Icons.check_circle;
+      statusColor = rateDegraded ? StudioColors.amber : StudioColors.emerald;
+      statusIcon = rateDegraded ? Icons.warning_amber_rounded : Icons.sensors;
       final parts = <String>[];
-      if (rateDegraded) parts.add('Stream rate degraded');
-      if (eegConnected) parts.add(deviceLabel ?? 'EEG Connected');
-      if (secondaryConnected.isNotEmpty) {
-        parts.add('${secondaryConnected.length} additional device(s)');
+      if (eegConnected) {
+        final profileName = eegService.connectedDeviceProfile?.name;
+        final label = deviceLabel ?? 'EEG';
+        parts.add(
+          profileName != null && profileName != label
+              ? '$label ($profileName)'
+              : label,
+        );
       }
-      if (nirsConnected) parts.add('fNIRS Connected');
+      if (secondaryConnected.isNotEmpty) {
+        parts.add('+${secondaryConnected.length} device(s)');
+      }
+      if (nirsConnected) parts.add('fNIRS');
       if (multiLsl.isConnected) {
-        parts.add('${multiLsl.connectedStreams.length} LSL stream(s)');
+        parts.add('${multiLsl.connectedStreams.length} LSL');
       }
       statusText = parts.join(' • ');
     } else if (anythingConnecting) {
-      statusColor = const Color(0xFFFBBF24); // Amber
-      statusIcon = Icons.sync;
+      statusColor = StudioColors.amber;
+      statusIcon = Icons.bluetooth_searching;
       statusText = nirsConnecting && !eegConnecting && !multiDevice.isBusy
-          ? 'Connecting fNIRS...'
-          : 'Connecting devices...';
+          ? 'Resolving fNIRS…'
+          : (eegState == AcquisitionState.scanning || multiDevice.isScanning)
+          ? 'Scanning for amplifiers…'
+          : 'Connecting…';
     } else {
-      statusColor = const Color(0xFFEF4444); // Red
-      statusIcon = Icons.error_outline;
-      statusText = 'Disconnected';
+      statusColor = StudioColors.red;
+      statusIcon = Icons.link_off;
+      statusText = 'No hardware connected';
     }
 
+    final openDialog =
+        onOpenConnectDialog ?? () => showDeviceConnectionDialog(context);
+
+    if (compact) {
+      return InkWell(
+        onTap: openDialog,
+        borderRadius: BorderRadius.circular(20),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+          decoration: BoxDecoration(
+            color: statusColor.withValues(alpha: 0.14),
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(color: statusColor.withValues(alpha: 0.45)),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(statusIcon, color: statusColor, size: 15),
+              const SizedBox(width: 6),
+              ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 180),
+                child: Text(
+                  statusText,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    color: statusColor,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 4),
+              Icon(Icons.expand_more, color: statusColor, size: 15),
+            ],
+          ),
+        ),
+      );
+    }
+
+    final deliveredRate = eegService.deliveredSampleRate;
+    final subtitle = anythingConnected
+        ? (rateDegraded
+              ? 'Stream rate degraded (${deliveredRate?.toStringAsFixed(0) ?? '?'} / ${eegService.sampleRate.toStringAsFixed(0)} Hz)'
+              : deliveredRate != null
+              ? 'Live • ${deliveredRate.toStringAsFixed(0)} Hz • ${eegService.channelCount} ch'
+              : 'Streaming live data • ${eegService.channelCount} ch')
+        : null;
+
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
       decoration: BoxDecoration(
-        color: const Color(0xFF1E293B),
+        color: StudioColors.card,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: statusColor.withOpacity(0.3), width: 1.5),
+        border: Border.all(color: statusColor.withValues(alpha: 0.35)),
       ),
       child: Row(
         children: [
-          Icon(statusIcon, color: statusColor, size: 20),
+          Container(
+            padding: const EdgeInsets.all(7),
+            decoration: BoxDecoration(
+              color: statusColor.withValues(alpha: 0.14),
+              borderRadius: BorderRadius.circular(9),
+            ),
+            child: Icon(statusIcon, color: statusColor, size: 18),
+          ),
           const SizedBox(width: 10),
           Expanded(
             child: Column(
@@ -113,42 +185,42 @@ class ConnectionStatusBar extends StatelessWidget {
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: const TextStyle(
-                    color: Colors.white,
+                    color: StudioColors.textPrimary,
                     fontWeight: FontWeight.w600,
-                    fontSize: 14,
+                    fontSize: 13.5,
                   ),
                 ),
-                if (eegConnected ||
-                    secondaryConnected.isNotEmpty ||
-                    nirsConnected ||
-                    multiLsl.isConnected)
+                if (subtitle != null)
                   Text(
-                    rateDegraded
-                        ? 'Data delivery is below the configured sample rate'
-                        : 'Streaming live data',
+                    subtitle,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: TextStyle(
-                      color: Colors.white.withOpacity(0.6),
-                      fontSize: 11,
+                      color: rateDegraded
+                          ? StudioColors.amber
+                          : StudioColors.textSecondary,
+                      fontSize: 11.5,
                     ),
                   ),
               ],
             ),
           ),
           if (anythingConnected) ...[
-            TextButton.icon(
-              icon: const Icon(Icons.settings_input_antenna, size: 18),
-              label: const Text('Manage'),
-              onPressed:
-                  onOpenConnectDialog ??
-                  () => showDeviceConnectionDialog(context),
-            ),
-            TextButton.icon(
-              icon: const Icon(Icons.link_off, size: 18),
-              label: const Text('Disconnect all'),
+            TextButton(
+              onPressed: openDialog,
               style: TextButton.styleFrom(
-                foregroundColor: const Color(0xFFFCA5A5),
+                foregroundColor: StudioColors.sky,
+                visualDensity: VisualDensity.compact,
+              ),
+              child: const Text('Devices'),
+            ),
+            IconButton(
+              tooltip: 'Disconnect all',
+              visualDensity: VisualDensity.compact,
+              icon: const Icon(
+                Icons.power_settings_new,
+                color: Color(0xFFFCA5A5),
+                size: 19,
               ),
               onPressed: () async {
                 await multiDevice.disconnectAll();
@@ -156,28 +228,26 @@ class ConnectionStatusBar extends StatelessWidget {
                 await multiLsl.disconnect();
               },
             ),
-          ] else ...[
-            ElevatedButton.icon(
+          ] else
+            FilledButton.icon(
               onPressed: anythingConnecting
                   ? () => multiDevice.disconnectAll()
-                  : onOpenConnectDialog ??
-                        () => showDeviceConnectionDialog(context),
+                  : openDialog,
               icon: Icon(
-                anythingConnecting ? Icons.close : Icons.link,
+                anythingConnecting ? Icons.close : Icons.bluetooth_connected,
                 size: 16,
               ),
               label: Text(anythingConnecting ? 'Cancel' : 'Connect'),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFF3B82F6),
+              style: FilledButton.styleFrom(
+                backgroundColor: StudioColors.blue,
                 foregroundColor: Colors.white,
+                visualDensity: VisualDensity.compact,
                 padding: const EdgeInsets.symmetric(
                   horizontal: 14,
                   vertical: 8,
                 ),
-                minimumSize: Size.zero,
               ),
             ),
-          ],
         ],
       ),
     );
@@ -185,8 +255,13 @@ class ConnectionStatusBar extends StatelessWidget {
 }
 
 void showDeviceConnectionDialog(BuildContext context) {
-  showDialog(context: context, builder: (_) => const DeviceConnectionDialog());
+  showDialog<void>(
+    context: context,
+    builder: (_) => const DeviceConnectionDialog(),
+  );
 }
+
+enum _ConnectTab { bluetooth, lsl, simulate }
 
 class DeviceConnectionDialog extends StatefulWidget {
   const DeviceConnectionDialog({super.key});
@@ -196,17 +271,30 @@ class DeviceConnectionDialog extends StatefulWidget {
 }
 
 class _DeviceConnectionDialogState extends State<DeviceConnectionDialog> {
+  _ConnectTab _tab = _ConnectTab.bluetooth;
+  bool _includeAllBle = false;
+  final Map<String, String> _selectedProfileIds = {};
+  MultiDeviceAcquisitionService? _multiDevice;
+
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted) {
-        final multiDevice = context.read<MultiDeviceAcquisitionService>();
-        if (!multiDevice.isScanning && !multiDevice.isBusy) {
-          multiDevice.scan();
-        }
+      if (!mounted) return;
+      _multiDevice = context.read<MultiDeviceAcquisitionService>();
+      if (!_multiDevice!.isScanning && !_multiDevice!.isBusy) {
+        unawaited(_multiDevice!.scan(includeAllBle: _includeAllBle));
       }
     });
+  }
+
+  @override
+  void dispose() {
+    final md = _multiDevice;
+    if (md != null && md.isScanning) {
+      unawaited(md.stopScan());
+    }
+    super.dispose();
   }
 
   @override
@@ -215,266 +303,757 @@ class _DeviceConnectionDialogState extends State<DeviceConnectionDialog> {
     final multiLsl = context.watch<MultiStreamLslService>();
     final multiDevice = context.watch<MultiDeviceAcquisitionService>();
     final settings = context.watch<SettingsService>();
-    final configuredLslStreams = settings.deviceProfiles
-        .where((device) => device.enabled && device.transport.name == 'lsl')
-        .expand((device) => device.enabledStreams)
-        .length;
+    final width = math.min(540.0, MediaQuery.sizeOf(context).width - 28);
 
-    return AlertDialog(
-      backgroundColor: const Color(0xFF1E293B),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-      title: const Text(
-        'Connect Devices',
-        style: TextStyle(color: Colors.white),
+    return Dialog(
+      backgroundColor: StudioColors.elevated,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(18),
+        side: const BorderSide(color: StudioColors.border),
       ),
-      content: ConstrainedBox(
-        constraints: const BoxConstraints(maxWidth: 400),
-        child: SingleChildScrollView(
+      child: SizedBox(
+        width: width,
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(18, 16, 18, 14),
           child: Column(
             mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              const Text(
-                'Bluetooth EEG/PPG (xAMP-L10 / EpiDome / ORBIT)',
-                style: TextStyle(
-                  color: Colors.white70,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-              const SizedBox(height: 8),
-              ListTile(
-                contentPadding: EdgeInsets.zero,
-                leading: const Icon(
-                  Icons.bluetooth_searching,
-                  color: Color(0xFF14B8A6),
-                ),
-                title: const Text(
-                  'Scan for xAMP or ORBIT',
-                  style: TextStyle(color: Colors.white),
-                ),
-                subtitle: const Text(
-                  'Scan, then select each intended device below',
-                  style: TextStyle(color: Colors.white54, fontSize: 12),
-                ),
-                trailing: ElevatedButton(
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFF14B8A6),
-                    foregroundColor: Colors.black,
+              Row(
+                children: [
+                  const Icon(
+                    Icons.settings_input_antenna,
+                    color: StudioColors.teal,
+                    size: 20,
                   ),
-                  onPressed: multiDevice.isScanning
-                      ? null
-                      : () => multiDevice.scan(),
-                  child: Text(multiDevice.isScanning ? 'Scanning…' : 'Scan'),
-                ),
-              ),
-              const Divider(color: Colors.white12, height: 24),
-              const Text(
-                'Bench Testing & Simulation',
-                style: TextStyle(
-                  color: Colors.white70,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-              const SizedBox(height: 8),
-              ListTile(
-                contentPadding: EdgeInsets.zero,
-                leading: const Icon(Icons.waves, color: Color(0xFF38BDF8)),
-                title: const Text(
-                  'Synthetic EEG Mode (16-ch)',
-                  style: TextStyle(color: Colors.white),
-                ),
-                subtitle: const Text(
-                  'Simulates 16-ch EpiDome waveforms at 250 Hz',
-                  style: TextStyle(color: Colors.white54, fontSize: 12),
-                ),
-                trailing: ElevatedButton(
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFF38BDF8),
-                    foregroundColor: Colors.black,
+                  const SizedBox(width: 8),
+                  const Expanded(
+                    child: Text(
+                      'Connect Devices',
+                      style: TextStyle(
+                        color: StudioColors.textPrimary,
+                        fontSize: 17,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
                   ),
-                  onPressed: () {
-                    eegService.addSyntheticDevice();
-                    final synth = eegService.discoveredDevices.firstWhere(
-                      (d) => d.kind == DeviceKind.synthetic,
-                    );
-                    eegService.connect(synth);
-                    Navigator.of(context).pop();
+                  IconButton(
+                    visualDensity: VisualDensity.compact,
+                    onPressed: () => Navigator.of(context).pop(),
+                    icon: const Icon(
+                      Icons.close,
+                      color: StudioColors.textSecondary,
+                      size: 20,
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 10),
+              SegmentedButton<_ConnectTab>(
+                showSelectedIcon: false,
+                style: ButtonStyle(
+                  visualDensity: VisualDensity.compact,
+                  backgroundColor: WidgetStateProperty.resolveWith(
+                    (states) => states.contains(WidgetState.selected)
+                        ? StudioColors.teal.withValues(alpha: 0.22)
+                        : StudioColors.card,
+                  ),
+                  foregroundColor: WidgetStateProperty.resolveWith(
+                    (states) => states.contains(WidgetState.selected)
+                        ? StudioColors.teal
+                        : StudioColors.textSecondary,
+                  ),
+                ),
+                segments: const [
+                  ButtonSegment(
+                    value: _ConnectTab.bluetooth,
+                    icon: Icon(Icons.bluetooth, size: 16),
+                    label: Text('Bluetooth'),
+                  ),
+                  ButtonSegment(
+                    value: _ConnectTab.lsl,
+                    icon: Icon(Icons.wifi, size: 16),
+                    label: Text('WiFi / LSL'),
+                  ),
+                  ButtonSegment(
+                    value: _ConnectTab.simulate,
+                    icon: Icon(Icons.waves, size: 16),
+                    label: Text('Simulate'),
+                  ),
+                ],
+                selected: {_tab},
+                onSelectionChanged: (sel) => setState(() => _tab = sel.first),
+              ),
+              const SizedBox(height: 14),
+              ConstrainedBox(
+                constraints: BoxConstraints(
+                  maxHeight: math.min(
+                    440.0,
+                    MediaQuery.sizeOf(context).height * 0.62,
+                  ),
+                ),
+                child: SingleChildScrollView(
+                  child: switch (_tab) {
+                    _ConnectTab.bluetooth => _buildBluetoothTab(
+                      context,
+                      eegService,
+                      multiDevice,
+                      settings,
+                    ),
+                    _ConnectTab.lsl => _buildLslTab(
+                      context,
+                      multiLsl,
+                      settings,
+                    ),
+                    _ConnectTab.simulate => _buildSimulateTab(
+                      context,
+                      eegService,
+                    ),
                   },
-                  child: const Text('Simulate'),
                 ),
               ),
-              const Divider(color: Colors.white12, height: 24),
-              const Text(
-                'Configured WiFi / LSL Streams',
-                style: TextStyle(
-                  color: Colors.white70,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-              const SizedBox(height: 8),
-              ListTile(
-                contentPadding: EdgeInsets.zero,
-                leading: const Icon(Icons.wifi, color: Color(0xFFB57BFF)),
-                title: Text(
-                  configuredLslStreams == 0
-                      ? 'No enabled LSL profiles'
-                      : 'Connect $configuredLslStreams configured stream(s)',
-                  style: TextStyle(color: Colors.white),
-                ),
-                subtitle: const Text(
-                  'Supports EEG, EOG, EMG, fNIRS, physiological, and marker streams',
-                  style: TextStyle(color: Colors.white54, fontSize: 12),
-                ),
-                trailing: ElevatedButton(
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFFB57BFF),
-                    foregroundColor: Colors.black,
-                  ),
-                  onPressed:
-                      configuredLslStreams == 0 ||
-                          multiLsl.state == AcquisitionState.connecting
-                      ? null
-                      : () {
-                          multiLsl.connectConfigured(settings.deviceProfiles);
-                          Navigator.of(context).pop();
-                        },
-                  child: Text(
-                    multiLsl.state == AcquisitionState.connecting
-                        ? 'Resolving…'
-                        : 'Connect',
-                  ),
-                ),
-              ),
-              if (multiDevice.discoveredDevices
-                  .where((d) => d.kind != DeviceKind.synthetic)
-                  .isNotEmpty) ...[
-                const Divider(color: Colors.white12, height: 24),
-                const Text(
-                  'Discovered Devices',
-                  style: TextStyle(
-                    color: Colors.white70,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-                const SizedBox(height: 8),
-                ...multiDevice.discoveredDevices
-                    .where((d) => d.kind != DeviceKind.synthetic)
-                    .map(
-                      (device) => ListTile(
-                        contentPadding: EdgeInsets.zero,
-                        leading: Icon(
-                          device.isBle ? Icons.bluetooth : Icons.devices_other,
-                          color: const Color(0xFF14B8A6),
-                        ),
-                        title: Text(
-                          device.name,
-                          style: const TextStyle(color: Colors.white),
-                        ),
-                        subtitle: Text(
-                          '${device.id} • ${device.kind.name.toUpperCase()}',
-                          style: const TextStyle(
-                            color: Colors.white54,
-                            fontSize: 12,
-                          ),
-                        ),
-                        trailing: ElevatedButton(
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: const Color(0xFF14B8A6),
-                            foregroundColor: Colors.black,
-                          ),
-                          onPressed:
-                              multiDevice.isDeviceConnectedOrConnecting(
-                                device.id,
-                              )
-                              ? null
-                              : () => multiDevice.connect(device),
-                          child: Text(
-                            multiDevice.isDeviceConnectedOrConnecting(device.id)
-                                ? 'Connected'
-                                : 'Connect',
-                          ),
-                        ),
-                      ),
-                    ),
-              ],
-              if (eegService.connectedDeviceId != null ||
-                  multiDevice.secondaryServices.isNotEmpty) ...[
-                const Divider(color: Colors.white12, height: 24),
-                const Text(
-                  'Direct Device Connections',
-                  style: TextStyle(
-                    color: Colors.white70,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-                if (eegService.connectedDeviceId != null)
-                  ListTile(
-                    contentPadding: EdgeInsets.zero,
-                    leading: Icon(
-                      eegService.isStreamReady
-                          ? Icons.graphic_eq
-                          : Icons.bluetooth_searching,
-                      color: eegService.isStreamReady
-                          ? const Color(0xFF10B981)
-                          : const Color(0xFFFBBF24),
-                    ),
-                    title: Text(
-                      eegService.connectedDeviceLabel,
-                      style: const TextStyle(color: Colors.white),
-                    ),
-                    subtitle: Text(
-                      eegService.isStreamReady
-                          ? 'Streaming validated samples'
-                          : eegService.currentState.name,
-                      style: const TextStyle(color: Colors.white54),
-                    ),
-                    trailing: IconButton(
-                      tooltip: 'Disconnect this device',
-                      icon: const Icon(
-                        Icons.link_off,
-                        color: Color(0xFFEF4444),
-                      ),
-                      onPressed: eegService.disconnect,
-                    ),
-                  ),
-                ...multiDevice.secondaryDevices.entries.map(
-                  (entry) => ListTile(
-                    contentPadding: EdgeInsets.zero,
-                    leading: const Icon(
-                      Icons.bluetooth_connected,
-                      color: Color(0xFF10B981),
-                    ),
-                    title: Text(
-                      entry.value.connectedDeviceLabel,
-                      style: const TextStyle(color: Colors.white),
-                    ),
-                    subtitle: Text(
-                      entry.value.isStreamReady
-                          ? 'Streaming validated samples'
-                          : entry.value.currentState.name,
-                      style: const TextStyle(color: Colors.white54),
-                    ),
-                    trailing: IconButton(
-                      tooltip: 'Disconnect this device',
-                      icon: const Icon(
-                        Icons.link_off,
-                        color: Color(0xFFEF4444),
-                      ),
-                      onPressed: () => multiDevice.disconnect(entry.key),
-                    ),
-                  ),
-                ),
-              ],
             ],
           ),
         ),
       ),
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.of(context).pop(),
-          child: const Text('Close', style: TextStyle(color: Colors.white70)),
+    );
+  }
+
+  Widget _buildBluetoothTab(
+    BuildContext context,
+    AcquisitionService eegService,
+    MultiDeviceAcquisitionService multiDevice,
+    SettingsService settings,
+  ) {
+    final isScanning = multiDevice.isScanning;
+    final scanError = multiDevice.lastScanError;
+    final discovered = multiDevice.discoveredDevices
+        .where((d) => d.kind != DeviceKind.synthetic)
+        .toList(growable: false);
+
+    // Unified list: connected devices first, then available (not yet connected)
+    final connectedIds = <String>{
+      if (eegService.connectedDeviceId != null) eegService.connectedDeviceId!,
+      ...multiDevice.secondaryDevices.keys,
+    };
+    final available = discovered
+        .where((d) => !connectedIds.contains(d.id))
+        .toList(growable: false);
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Container(
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            color: StudioColors.card,
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: StudioColors.border),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Row(
+                children: [
+                  Icon(
+                    isScanning
+                        ? Icons.bluetooth_searching
+                        : Icons.bluetooth_audio,
+                    color: isScanning ? StudioColors.sky : StudioColors.teal,
+                    size: 20,
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          isScanning
+                              ? 'Scanning nearby amplifiers…'
+                              : 'xAMP-L10 / EpiDome / ORBIT',
+                          style: const TextStyle(
+                            color: StudioColors.textPrimary,
+                            fontWeight: FontWeight.w600,
+                            fontSize: 13.5,
+                          ),
+                        ),
+                        Text(
+                          available.isEmpty && connectedIds.isEmpty
+                              ? 'Ensure the amplifier is powered on and nearby'
+                              : '${connectedIds.length} connected • ${available.length} found',
+                          style: const TextStyle(
+                            color: StudioColors.textSecondary,
+                            fontSize: 11.5,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  FilledButton.icon(
+                    style: FilledButton.styleFrom(
+                      backgroundColor: isScanning
+                          ? StudioColors.elevated
+                          : StudioColors.teal,
+                      foregroundColor: isScanning
+                          ? StudioColors.textPrimary
+                          : Colors.black,
+                      visualDensity: VisualDensity.compact,
+                    ),
+                    onPressed: () {
+                      if (isScanning) {
+                        unawaited(multiDevice.stopScan());
+                      } else {
+                        unawaited(
+                          multiDevice.scan(includeAllBle: _includeAllBle),
+                        );
+                      }
+                    },
+                    icon: Icon(
+                      isScanning ? Icons.stop : Icons.refresh,
+                      size: 16,
+                    ),
+                    label: Text(isScanning ? 'Stop' : 'Scan'),
+                  ),
+                ],
+              ),
+              if (isScanning) ...[
+                const SizedBox(height: 8),
+                const LinearProgressIndicator(
+                  minHeight: 2.5,
+                  color: StudioColors.teal,
+                  backgroundColor: StudioColors.border,
+                ),
+              ],
+              const SizedBox(height: 6),
+              Row(
+                children: [
+                  SizedBox(
+                    height: 24,
+                    child: Checkbox(
+                      value: _includeAllBle,
+                      visualDensity: VisualDensity.compact,
+                      activeColor: StudioColors.teal,
+                      onChanged: (v) {
+                        setState(() => _includeAllBle = v ?? false);
+                        unawaited(
+                          multiDevice.scan(includeAllBle: _includeAllBle),
+                        );
+                      },
+                    ),
+                  ),
+                  const Expanded(
+                    child: Text(
+                      'Include unmatched BLE devices',
+                      style: TextStyle(
+                        color: StudioColors.textSecondary,
+                        fontSize: 11.5,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
         ),
+        if (scanError != null && scanError.isNotEmpty) ...[
+          const SizedBox(height: 8),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+            decoration: BoxDecoration(
+              color: StudioColors.red.withValues(alpha: 0.14),
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(
+                color: StudioColors.red.withValues(alpha: 0.45),
+              ),
+            ),
+            child: Row(
+              children: [
+                const Icon(
+                  Icons.error_outline,
+                  color: StudioColors.red,
+                  size: 18,
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    scanError,
+                    style: const TextStyle(
+                      color: StudioColors.textPrimary,
+                      fontSize: 12,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+        if (eegService.connectedDeviceId != null ||
+            multiDevice.secondaryDevices.isNotEmpty) ...[
+          const SizedBox(height: 12),
+          const Text(
+            'ACTIVE CONNECTIONS',
+            style: TextStyle(
+              color: StudioColors.textMuted,
+              fontSize: 10.5,
+              fontWeight: FontWeight.w700,
+              letterSpacing: 0.8,
+            ),
+          ),
+          const SizedBox(height: 6),
+          if (eegService.connectedDeviceId != null)
+            _buildConnectedTile(
+              context,
+              service: eegService,
+              settings: settings,
+              onSelectProfile: multiDevice.switchPrimaryProfile,
+              onDisconnect: eegService.disconnect,
+            ),
+          ...multiDevice.secondaryDevices.entries.map(
+            (entry) => _buildConnectedTile(
+              context,
+              service: entry.value,
+              settings: settings,
+              onSelectProfile: (p) =>
+                  multiDevice.switchDeviceProfile(entry.key, p),
+              onDisconnect: () => multiDevice.disconnect(entry.key),
+            ),
+          ),
+        ],
+        const SizedBox(height: 12),
+        const Text(
+          'DISCOVERED DEVICES',
+          style: TextStyle(
+            color: StudioColors.textMuted,
+            fontSize: 10.5,
+            fontWeight: FontWeight.w700,
+            letterSpacing: 0.8,
+          ),
+        ),
+        const SizedBox(height: 6),
+        if (available.isEmpty)
+          Container(
+            padding: const EdgeInsets.symmetric(vertical: 20, horizontal: 12),
+            decoration: BoxDecoration(
+              color: StudioColors.card,
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: StudioColors.border),
+            ),
+            child: Text(
+              isScanning
+                  ? 'Listening for Bluetooth advertisements…'
+                  : 'No additional amplifiers found. Tap Scan to search again.',
+              textAlign: TextAlign.center,
+              style: const TextStyle(
+                color: StudioColors.textSecondary,
+                fontSize: 12.5,
+              ),
+            ),
+          )
+        else
+          ...available.map(
+            (device) =>
+                _buildAvailableTile(context, device, multiDevice, settings),
+          ),
       ],
+    );
+  }
+
+  Widget _buildConnectedTile(
+    BuildContext context, {
+    required AcquisitionService service,
+    required SettingsService settings,
+    required ValueChanged<DeviceProfile> onSelectProfile,
+    required VoidCallback onDisconnect,
+  }) {
+    final matching = settings.deviceProfiles
+        .where((p) => p.enabled && p.transport != ConnectionTransport.lsl)
+        .toList(growable: false);
+    final activeProfile = service.connectedDeviceProfile;
+    final rate = service.deliveredSampleRate;
+    final color = service.isStreamReady
+        ? StudioColors.emerald
+        : StudioColors.amber;
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 8),
+      padding: const EdgeInsets.all(10),
+      decoration: BoxDecoration(
+        color: StudioColors.card,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: color.withValues(alpha: 0.45)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(
+                service.isStreamReady
+                    ? Icons.graphic_eq
+                    : Icons.bluetooth_connected,
+                color: color,
+                size: 20,
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      service.connectedDeviceLabel,
+                      style: const TextStyle(
+                        color: StudioColors.textPrimary,
+                        fontWeight: FontWeight.w600,
+                        fontSize: 13.5,
+                      ),
+                    ),
+                    Text(
+                      service.isStreamReady
+                          ? '${rate != null ? '${rate.toStringAsFixed(0)} Hz • ' : ''}${service.channelCount} ch streaming'
+                          : service.currentState.name,
+                      style: TextStyle(color: color, fontSize: 11.5),
+                    ),
+                  ],
+                ),
+              ),
+              IconButton(
+                tooltip: 'Disconnect device',
+                visualDensity: VisualDensity.compact,
+                icon: const Icon(
+                  Icons.link_off,
+                  color: StudioColors.red,
+                  size: 20,
+                ),
+                onPressed: onDisconnect,
+              ),
+            ],
+          ),
+          if (matching.length > 1) ...[
+            const SizedBox(height: 6),
+            Row(
+              children: [
+                const Text(
+                  'Profile:',
+                  style: TextStyle(
+                    color: StudioColors.textSecondary,
+                    fontSize: 11.5,
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: DropdownButton<String>(
+                    isExpanded: true,
+                    isDense: true,
+                    value: matching.any((p) => p.id == activeProfile?.id)
+                        ? activeProfile?.id
+                        : null,
+                    hint: const Text(
+                      'Select device profile',
+                      style: TextStyle(
+                        color: StudioColors.textMuted,
+                        fontSize: 12,
+                      ),
+                    ),
+                    dropdownColor: StudioColors.elevated,
+                    style: const TextStyle(
+                      color: StudioColors.textPrimary,
+                      fontSize: 12,
+                    ),
+                    items: matching
+                        .map(
+                          (p) => DropdownMenuItem(
+                            value: p.id,
+                            child: Text(
+                              p.projectTag.isNotEmpty
+                                  ? '${p.name} (${p.projectTag})'
+                                  : p.name,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                        )
+                        .toList(),
+                    onChanged: (id) {
+                      if (id == null) return;
+                      final profile = settings.profileById(id);
+                      if (profile != null) onSelectProfile(profile);
+                    },
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _buildAvailableTile(
+    BuildContext context,
+    EegDevice device,
+    MultiDeviceAcquisitionService multiDevice,
+    SettingsService settings,
+  ) {
+    final matching = multiDevice.matchingProfilesFor(device);
+    final selectedId = _selectedProfileIds[device.id] ?? device.profileId;
+    final effectiveProfile = selectedId != null
+        ? settings.profileById(selectedId)
+        : (matching.isNotEmpty ? matching.first : null);
+    final connecting = multiDevice.isDeviceConnectedOrConnecting(device.id);
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 8),
+      padding: const EdgeInsets.all(10),
+      decoration: BoxDecoration(
+        color: StudioColors.card,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: StudioColors.border),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(
+                device.isBle ? Icons.bluetooth : Icons.devices_other,
+                color: StudioColors.teal,
+                size: 20,
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      device.name,
+                      style: const TextStyle(
+                        color: StudioColors.textPrimary,
+                        fontWeight: FontWeight.w600,
+                        fontSize: 13.5,
+                      ),
+                    ),
+                    Text(
+                      '${device.id} • ${(effectiveProfile?.name ?? device.kind.name).toUpperCase()}',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        color: StudioColors.textSecondary,
+                        fontSize: 11,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 8),
+              FilledButton(
+                style: FilledButton.styleFrom(
+                  backgroundColor: StudioColors.teal,
+                  foregroundColor: Colors.black,
+                  visualDensity: VisualDensity.compact,
+                ),
+                onPressed: connecting
+                    ? null
+                    : () {
+                        final target = effectiveProfile == null
+                            ? device
+                            : EegDevice(
+                                name: device.name,
+                                id: device.id,
+                                kind: switch (effectiveProfile.protocol) {
+                                  DeviceProtocol.xampBinary =>
+                                    DeviceKind.epidome,
+                                  DeviceProtocol.orbitJson => DeviceKind.orbit,
+                                  DeviceProtocol.synthetic =>
+                                    DeviceKind.synthetic,
+                                  _ => DeviceKind.generic,
+                                },
+                                isBle: device.isBle,
+                                profileId: effectiveProfile.id,
+                              );
+                        unawaited(multiDevice.connect(target));
+                      },
+                child: Text(connecting ? 'Connecting…' : 'Connect'),
+              ),
+            ],
+          ),
+          if (matching.length > 1) ...[
+            const SizedBox(height: 6),
+            DropdownButtonFormField<String>(
+              initialValue: matching.any((p) => p.id == effectiveProfile?.id)
+                  ? effectiveProfile!.id
+                  : matching.first.id,
+              isDense: true,
+              dropdownColor: StudioColors.elevated,
+              style: const TextStyle(
+                color: StudioColors.textPrimary,
+                fontSize: 12,
+              ),
+              decoration: const InputDecoration(
+                labelText: 'Project / Channel Profile',
+                contentPadding: EdgeInsets.symmetric(
+                  horizontal: 10,
+                  vertical: 6,
+                ),
+              ),
+              items: matching
+                  .map(
+                    (p) => DropdownMenuItem(
+                      value: p.id,
+                      child: Text(
+                        p.projectTag.isNotEmpty
+                            ? '${p.name} — ${p.projectTag}'
+                            : p.name,
+                      ),
+                    ),
+                  )
+                  .toList(),
+              onChanged: (id) {
+                if (id != null) {
+                  setState(() => _selectedProfileIds[device.id] = id);
+                }
+              },
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _buildLslTab(
+    BuildContext context,
+    MultiStreamLslService multiLsl,
+    SettingsService settings,
+  ) {
+    final configuredLslStreams = settings.deviceProfiles
+        .where((device) => device.enabled && device.transport == ConnectionTransport.lsl)
+        .expand((device) => device.enabledStreams)
+        .length;
+
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: StudioColors.card,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: StudioColors.border),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Row(
+            children: [
+              const Icon(Icons.wifi, color: StudioColors.violet, size: 22),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      configuredLslStreams == 0
+                          ? 'No enabled LSL stream profiles'
+                          : '$configuredLslStreams configured LSL stream(s)',
+                      style: const TextStyle(
+                        color: StudioColors.textPrimary,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    const Text(
+                      'Supports EEG, EOG, EMG, fNIRS, physiological, and marker streams over WiFi/LAN.',
+                      style: TextStyle(
+                        color: StudioColors.textSecondary,
+                        fontSize: 12,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 14),
+          FilledButton.icon(
+            style: FilledButton.styleFrom(
+              backgroundColor: StudioColors.violet,
+              foregroundColor: Colors.white,
+            ),
+            onPressed:
+                configuredLslStreams == 0 ||
+                    multiLsl.state == AcquisitionState.connecting
+                ? null
+                : () {
+                    multiLsl.connectConfigured(settings.deviceProfiles);
+                    Navigator.of(context).pop();
+                  },
+            icon: const Icon(Icons.link, size: 18),
+            label: Text(
+              multiLsl.state == AcquisitionState.connecting
+                  ? 'Resolving LSL streams…'
+                  : 'Connect LSL Streams',
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSimulateTab(
+    BuildContext context,
+    AcquisitionService eegService,
+  ) {
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: StudioColors.card,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: StudioColors.border),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          const Row(
+            children: [
+              Icon(Icons.waves, color: StudioColors.sky, size: 22),
+              SizedBox(width: 10),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Synthetic EEG Mode (16-ch)',
+                      style: TextStyle(
+                        color: StudioColors.textPrimary,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    Text(
+                      'Simulates 16-ch EpiDome waveforms at 250 Hz for bench testing without hardware.',
+                      style: TextStyle(
+                        color: StudioColors.textSecondary,
+                        fontSize: 12,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 14),
+          FilledButton.icon(
+            style: FilledButton.styleFrom(
+              backgroundColor: StudioColors.sky,
+              foregroundColor: Colors.black,
+            ),
+            onPressed: () {
+              eegService.addSyntheticDevice();
+              final synth = eegService.discoveredDevices.firstWhere(
+                (d) => d.kind == DeviceKind.synthetic,
+              );
+              eegService.connect(synth);
+              Navigator.of(context).pop();
+            },
+            icon: const Icon(Icons.play_arrow, size: 18),
+            label: const Text('Start 16-ch Simulation'),
+          ),
+        ],
+      ),
     );
   }
 }
@@ -482,7 +1061,7 @@ class _DeviceConnectionDialogState extends State<DeviceConnectionDialog> {
 void showQuickModuleSwitcher(BuildContext context) {
   showModalBottomSheet(
     context: context,
-    backgroundColor: const Color(0xFF1E293B),
+    backgroundColor: StudioColors.elevated,
     shape: const RoundedRectangleBorder(
       borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
     ),
@@ -504,12 +1083,12 @@ class QuickModuleSwitcherModal extends StatelessWidget {
           children: [
             const Row(
               children: [
-                Icon(Icons.apps, color: Color(0xFF3B82F6), size: 24),
+                Icon(Icons.apps, color: StudioColors.blue, size: 24),
                 SizedBox(width: 10),
                 Text(
                   'Quick Module Switcher',
                   style: TextStyle(
-                    color: Colors.white,
+                    color: StudioColors.textPrimary,
                     fontSize: 18,
                     fontWeight: FontWeight.bold,
                   ),
@@ -519,7 +1098,7 @@ class QuickModuleSwitcherModal extends StatelessWidget {
             const SizedBox(height: 4),
             const Text(
               'Switch between research modules without disconnecting EEG hardware.',
-              style: TextStyle(color: Colors.white54, fontSize: 13),
+              style: TextStyle(color: StudioColors.textSecondary, fontSize: 13),
             ),
             const SizedBox(height: 16),
             _buildModuleOption(
@@ -527,7 +1106,7 @@ class QuickModuleSwitcherModal extends StatelessWidget {
               title: 'Home Dashboard',
               subtitle: 'Return to main overview & system diagnostics',
               icon: Icons.home_rounded,
-              color: const Color(0xFF3B82F6),
+              color: StudioColors.blue,
               isHome: true,
             ),
             _buildModuleOption(
@@ -535,7 +1114,7 @@ class QuickModuleSwitcherModal extends StatelessWidget {
               title: 'EEG & fNIRS Recorder',
               subtitle: '16-channel waveform viewer & EDF+ recording',
               icon: Icons.monitor_heart,
-              color: const Color(0xFF14B8A6),
+              color: StudioColors.teal,
               routeName: '/standalone',
             ),
             _buildModuleOption(
@@ -543,7 +1122,7 @@ class QuickModuleSwitcherModal extends StatelessWidget {
               title: 'Train NIDRA',
               subtitle: 'Real-time sleep staging & auditory biofeedback',
               icon: Icons.nightlight_round,
-              color: const Color(0xFF8B5CF6),
+              color: StudioColors.violet,
               routeName: '/nidra',
             ),
             _buildModuleOption(
@@ -551,7 +1130,7 @@ class QuickModuleSwitcherModal extends StatelessWidget {
               title: 'ANGEL Cognitive Task',
               subtitle: 'Event-Related Potential battery & PDF reports',
               icon: Icons.psychology,
-              color: const Color(0xFFF59E0B),
+              color: StudioColors.amber,
               routeName: '/angel',
             ),
             _buildModuleOption(
@@ -559,7 +1138,7 @@ class QuickModuleSwitcherModal extends StatelessWidget {
               title: 'Adaptive Working Memory',
               subtitle: 'N-Back cognitive task with EEG workload tracking',
               icon: Icons.memory,
-              color: const Color(0xFFEC4899),
+              color: Color(0xFFEC4899),
               routeName: '/wm',
             ),
           ],
@@ -581,7 +1160,7 @@ class QuickModuleSwitcherModal extends StatelessWidget {
       leading: Container(
         padding: const EdgeInsets.all(8),
         decoration: BoxDecoration(
-          color: color.withOpacity(0.2),
+          color: color.withValues(alpha: 0.2),
           borderRadius: BorderRadius.circular(10),
         ),
         child: Icon(icon, color: color, size: 22),
@@ -589,16 +1168,16 @@ class QuickModuleSwitcherModal extends StatelessWidget {
       title: Text(
         title,
         style: const TextStyle(
-          color: Colors.white,
+          color: StudioColors.textPrimary,
           fontWeight: FontWeight.w600,
         ),
       ),
       subtitle: Text(
         subtitle,
-        style: const TextStyle(color: Colors.white54, fontSize: 12),
+        style: const TextStyle(color: StudioColors.textSecondary, fontSize: 12),
       ),
       onTap: () {
-        Navigator.of(context).pop(); // Close switcher modal
+        Navigator.of(context).pop();
         final session = context.read<SessionManager>();
         void doSwitch() {
           if (isHome) {
@@ -614,22 +1193,19 @@ class QuickModuleSwitcherModal extends StatelessWidget {
           showDialog(
             context: context,
             builder: (ctx) => AlertDialog(
-              backgroundColor: const Color(0xFF1E293B),
+              backgroundColor: StudioColors.elevated,
               title: const Text(
-                '⚠️ Active Recording',
-                style: TextStyle(color: Color(0xFFEF4444)),
+                'Active Recording',
+                style: TextStyle(color: StudioColors.red),
               ),
               content: Text(
                 'An EEG recording is currently active (${session.activeModule?.displayName ?? "Unknown"}). Do you want to stop and save before switching modules?',
-                style: const TextStyle(color: Colors.white70),
+                style: const TextStyle(color: StudioColors.textSecondary),
               ),
               actions: [
                 TextButton(
                   onPressed: () => Navigator.of(ctx).pop(),
-                  child: const Text(
-                    'Cancel',
-                    style: TextStyle(color: Colors.white54),
-                  ),
+                  child: const Text('Cancel'),
                 ),
                 TextButton(
                   onPressed: () {
@@ -638,13 +1214,13 @@ class QuickModuleSwitcherModal extends StatelessWidget {
                   },
                   child: const Text(
                     'Switch Without Stopping',
-                    style: TextStyle(color: Color(0xFFF59E0B)),
+                    style: TextStyle(color: StudioColors.amber),
                   ),
                 ),
-                ElevatedButton(
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFF10B981),
-                    foregroundColor: Colors.white,
+                FilledButton(
+                  style: FilledButton.styleFrom(
+                    backgroundColor: StudioColors.emerald,
+                    foregroundColor: Colors.black,
                   ),
                   onPressed: () {
                     session.stopRecording();

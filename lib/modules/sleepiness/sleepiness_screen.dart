@@ -1,5 +1,6 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
+import '../../core/theme/studio_theme.dart';
 import 'package:provider/provider.dart';
 import 'package:path_provider/path_provider.dart';
 
@@ -115,7 +116,7 @@ class _SleepinessScreenState extends State<SleepinessScreen> {
         content: Text(
           'Saved Stanford Sleepiness Scale score: $score ($subjectCode)',
         ),
-        backgroundColor: const Color(0xFF14B8A6),
+        backgroundColor: StudioColors.teal,
       ),
     );
     setState(() => _selectedScore = null);
@@ -126,18 +127,18 @@ class _SleepinessScreenState extends State<SleepinessScreen> {
   Widget build(BuildContext context) {
     final settings = context.watch<SettingsService>();
     final subjectCode = settings.subjectCode;
-    final lightTeal = const Color(0xFF14B8A6);
+    final lightTeal = StudioColors.teal;
 
     return Scaffold(
-      backgroundColor: const Color(0xFF0B0F19),
+      backgroundColor: StudioColors.canvas,
       appBar: AppBar(
         title: const Text(
           'Stanford Sleepiness Scale (SSS)',
-          style: TextStyle(color: Colors.white),
+          style: TextStyle(color: StudioColors.textPrimary),
         ),
-        backgroundColor: const Color(0xFF111827),
+        backgroundColor: StudioColors.surface,
         elevation: 0,
-        iconTheme: const IconThemeData(color: Colors.white),
+        iconTheme: const IconThemeData(color: StudioColors.textPrimary),
       ),
       body: SafeArea(
         child: SingleChildScrollView(
@@ -149,7 +150,7 @@ class _SleepinessScreenState extends State<SleepinessScreen> {
               Container(
                 padding: const EdgeInsets.all(16),
                 decoration: BoxDecoration(
-                  color: const Color(0xFF1E293B),
+                  color: StudioColors.card,
                   borderRadius: BorderRadius.circular(16),
                   border: Border.all(color: lightTeal.withOpacity(0.3)),
                 ),
@@ -157,7 +158,7 @@ class _SleepinessScreenState extends State<SleepinessScreen> {
                   children: [
                     const Icon(
                       Icons.person,
-                      color: Color(0xFF14B8A6),
+                      color: StudioColors.teal,
                       size: 28,
                     ),
                     const SizedBox(width: 14),
@@ -168,7 +169,7 @@ class _SleepinessScreenState extends State<SleepinessScreen> {
                           const Text(
                             'GLOBAL SUBJECT ID (Inherited from Main UI)',
                             style: TextStyle(
-                              color: Colors.white54,
+                              color: StudioColors.textMuted,
                               fontSize: 11,
                             ),
                           ),
@@ -176,7 +177,7 @@ class _SleepinessScreenState extends State<SleepinessScreen> {
                           Text(
                             subjectCode,
                             style: const TextStyle(
-                              color: Colors.white,
+                              color: StudioColors.textPrimary,
                               fontSize: 18,
                               fontWeight: FontWeight.bold,
                             ),
@@ -190,13 +191,13 @@ class _SleepinessScreenState extends State<SleepinessScreen> {
                         vertical: 6,
                       ),
                       decoration: BoxDecoration(
-                        color: const Color(0xFF111827),
+                        color: StudioColors.surface,
                         borderRadius: BorderRadius.circular(8),
                       ),
                       child: const Text(
                         'Modular SSS Task',
                         style: TextStyle(
-                          color: Color(0xFF14B8A6),
+                          color: StudioColors.teal,
                           fontSize: 12,
                           fontWeight: FontWeight.bold,
                         ),
@@ -211,7 +212,7 @@ class _SleepinessScreenState extends State<SleepinessScreen> {
               const Text(
                 'Assessment Checkpoint / Timing',
                 style: TextStyle(
-                  color: Colors.white,
+                  color: StudioColors.textPrimary,
                   fontSize: 16,
                   fontWeight: FontWeight.bold,
                 ),
@@ -220,15 +221,15 @@ class _SleepinessScreenState extends State<SleepinessScreen> {
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 16),
                 decoration: BoxDecoration(
-                  color: const Color(0xFF1E293B),
+                  color: StudioColors.card,
                   borderRadius: BorderRadius.circular(12),
                 ),
                 child: DropdownButton<String>(
                   value: _selectedTiming,
                   isExpanded: true,
-                  dropdownColor: const Color(0xFF1E293B),
+                  dropdownColor: StudioColors.card,
                   underline: const SizedBox.shrink(),
-                  style: const TextStyle(color: Colors.white, fontSize: 15),
+                  style: const TextStyle(color: StudioColors.textPrimary, fontSize: 15),
                   icon: Icon(Icons.arrow_drop_down, color: lightTeal),
                   items: _timingOptions
                       .map((t) => DropdownMenuItem(value: t, child: Text(t)))
@@ -244,7 +245,7 @@ class _SleepinessScreenState extends State<SleepinessScreen> {
               const Text(
                 'Select Current Subjective Alertness Level',
                 style: TextStyle(
-                  color: Colors.white,
+                  color: StudioColors.textPrimary,
                   fontSize: 16,
                   fontWeight: FontWeight.bold,
                 ),
@@ -252,7 +253,7 @@ class _SleepinessScreenState extends State<SleepinessScreen> {
               const SizedBox(height: 10),
               Container(
                 decoration: BoxDecoration(
-                  color: const Color(0xFF1E293B),
+                  color: StudioColors.card,
                   borderRadius: BorderRadius.circular(16),
                 ),
                 child: Column(
@@ -272,7 +273,7 @@ class _SleepinessScreenState extends State<SleepinessScreen> {
                               : Colors.transparent,
                           border: index < _scaleItems.length - 1
                               ? const Border(
-                                  bottom: BorderSide(color: Colors.white10),
+                                  bottom: BorderSide(color: StudioColors.border),
                                 )
                               : null,
                         ),
@@ -286,14 +287,14 @@ class _SleepinessScreenState extends State<SleepinessScreen> {
                                 shape: BoxShape.circle,
                                 color: isSelected
                                     ? lightTeal
-                                    : const Color(0xFF111827),
+                                    : StudioColors.surface,
                               ),
                               child: Text(
                                 '$score',
                                 style: TextStyle(
                                   color: isSelected
-                                      ? Colors.black
-                                      : Colors.white70,
+                                      ? StudioColors.textPrimary
+                                      : StudioColors.textSecondary,
                                   fontWeight: FontWeight.bold,
                                   fontSize: 15,
                                 ),
@@ -305,8 +306,8 @@ class _SleepinessScreenState extends State<SleepinessScreen> {
                                 _scaleItems[index],
                                 style: TextStyle(
                                   color: isSelected
-                                      ? Colors.white
-                                      : Colors.white70,
+                                      ? StudioColors.textPrimary
+                                      : StudioColors.textSecondary,
                                   fontWeight: isSelected
                                       ? FontWeight.w600
                                       : FontWeight.normal,
@@ -338,8 +339,8 @@ class _SleepinessScreenState extends State<SleepinessScreen> {
                         ? const Color(0xFF334155)
                         : lightTeal,
                     foregroundColor: _selectedScore == null
-                        ? Colors.white38
-                        : Colors.black,
+                        ? StudioColors.textMuted
+                        : StudioColors.textPrimary,
                     padding: const EdgeInsets.symmetric(vertical: 16),
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(12),
@@ -361,7 +362,7 @@ class _SleepinessScreenState extends State<SleepinessScreen> {
               const Text(
                 'Recent SSS Log Entries (sleepiness_scores.csv)',
                 style: TextStyle(
-                  color: Colors.white,
+                  color: StudioColors.textPrimary,
                   fontSize: 16,
                   fontWeight: FontWeight.bold,
                 ),
@@ -371,7 +372,7 @@ class _SleepinessScreenState extends State<SleepinessScreen> {
                 width: double.infinity,
                 padding: const EdgeInsets.all(16),
                 decoration: BoxDecoration(
-                  color: const Color(0xFF1E293B),
+                  color: StudioColors.card,
                   borderRadius: BorderRadius.circular(16),
                 ),
                 child: _isLoadingHistory
@@ -386,7 +387,7 @@ class _SleepinessScreenState extends State<SleepinessScreen> {
                         padding: EdgeInsets.all(16.0),
                         child: Text(
                           'No previous sleepiness logs recorded yet.',
-                          style: TextStyle(color: Colors.white38),
+                          style: TextStyle(color: StudioColors.textMuted),
                         ),
                       )
                     : Column(
@@ -422,7 +423,7 @@ class _SleepinessScreenState extends State<SleepinessScreen> {
                                       Text(
                                         '${row['subject_id']} • ${row['timing']}',
                                         style: const TextStyle(
-                                          color: Colors.white,
+                                          color: StudioColors.textPrimary,
                                           fontSize: 13,
                                           fontWeight: FontWeight.w600,
                                         ),
@@ -430,7 +431,7 @@ class _SleepinessScreenState extends State<SleepinessScreen> {
                                       Text(
                                         row['timestamp'] ?? '',
                                         style: const TextStyle(
-                                          color: Colors.white38,
+                                          color: StudioColors.textMuted,
                                           fontSize: 11,
                                         ),
                                       ),

@@ -9,7 +9,8 @@ enum ModuleType {
   hep,
   resonance,
   standalone,
-  sleepiness;
+  sleepiness,
+  speechTracking;
 
   /// Short tag used in file names (e.g. NIDRA, ANGEL, WM, EEG, SSS).
   String get fileTag => switch (this) {
@@ -23,20 +24,22 @@ enum ModuleType {
     ModuleType.resonance => 'RESONANCE',
     ModuleType.standalone => 'EEG',
     ModuleType.sleepiness => 'SSS',
+    ModuleType.speechTracking => 'SPEECH',
   };
 
   /// Human-readable label.
   String get displayName => switch (this) {
     ModuleType.nidra => 'Train NIDRA',
     ModuleType.angel => 'ANGEL',
-    ModuleType.erp => 'Generic ERP',
+    ModuleType.erp => 'Generic & ERP CORE',
     ModuleType.wm => 'Adaptive WM',
     ModuleType.heartsync => 'HeartSync',
-    ModuleType.hrd => 'Heart Rate Detection',
+    ModuleType.hrd => 'Heart Rate Discrimination',
     ModuleType.hep => 'Heartbeat Evoked Potential',
     ModuleType.resonance => 'Resonance Breathing',
     ModuleType.standalone => 'EEG Recorder',
     ModuleType.sleepiness => 'Sleepiness Scale',
+    ModuleType.speechTracking => 'Neural Speech Tracking',
   };
 
   static ModuleType? fromKey(String key) {

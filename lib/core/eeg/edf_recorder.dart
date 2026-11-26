@@ -13,8 +13,9 @@ class EdfRecorder extends ChangeNotifier {
   Pointer<Void> _writer = nullptr;
   String? _path;
   int _signalChannelCount = 16;
-  int _edfChannelCount = 17;
+  int _edfChannelCount = 16;
   int _sampleRate = 250;
+  int _samplesWritten = 0;
   List<String> _channelLabels = const [
     'Fp1',
     'Fp2',
@@ -34,8 +35,6 @@ class EdfRecorder extends ChangeNotifier {
     'T3',
   ];
   List<bool>? _enabledChannels;
-  int _activeMarkerCode = 0;
-  int _markerHoldCounter = 0;
   final List<OrbitEegDcBlocker> _eegDcBlockers = List.generate(
     16,
     (_) => OrbitEegDcBlocker(),
@@ -50,6 +49,7 @@ class EdfRecorder extends ChangeNotifier {
   int get segmentIndex => _segmentIndex;
   int get channelCount => _signalChannelCount;
   int get sampleRate => _sampleRate;
+  int get samplesWritten => _samplesWritten;
   List<String> get channelLabels => List.unmodifiable(_channelLabels);
   List<bool>? get enabledChannels => _enabledChannels;
   bool get dcBlockElectrophysiology => _dcBlockElectrophysiology;
@@ -152,13 +152,12 @@ class EdfRecorder extends ChangeNotifier {
       throw ArgumentError('At least one EEG channel must be enabled.');
     }
     _signalChannelCount = selection.indices.length;
-    _edfChannelCount = _signalChannelCount + 1;
+    _edfChannelCount = _signalChannelCount;
     _sampleRate = sampleRate.clamp(50, 1000);
+    _samplesWritten = 0;
     _channelLabels = selection.labels;
     _enabledChannels = enabledChannels;
     _dcBlockElectrophysiology = dcBlockElectrophysiology;
-    _activeMarkerCode = 0;
-    _markerHoldCounter = 0;
     for (final blocker in _eegDcBlockers) {
       blocker.reset();
     }
@@ -179,22 +178,21 @@ class EdfRecorder extends ChangeNotifier {
               ),
             ];
       final signalMetadata = EdfRecorder.signalMetadata(labels);
-      labels.add('Marker');
-      final physDims = [...signalMetadata.physicalDimensions, 'code'];
-      final prefilters = [
-        ...labels.take(_signalChannelCount).map((label) {
-          if (label.toUpperCase().contains('PPG')) {
-            return 'DC blocked + smoothed';
-          }
-          return _dcBlockElectrophysiology
-              ? 'HP:0.2Hz software DC block'
-              : 'None';
-        }),
-        'HP:0 LP:0',
-      ];
-      final transducers = [...signalMetadata.transducers, 'Event markers'];
-      final physicalMinimums = [...signalMetadata.physicalMinimums, -32768.0];
-      final physicalMaximums = [...signalMetadata.physicalMaximums, 32767.0];
+      final physDims = signalMetadata.physicalDimensions;
+      final prefilters = labels
+          .take(_signalChannelCount)
+          .map((label) {
+            if (label.toUpperCase().contains('PPG')) {
+              return 'DC blocked + smoothed';
+            }
+            return _dcBlockElectrophysiology
+                ? 'HP:0.2Hz software DC block'
+                : 'None';
+          })
+          .toList(growable: false);
+      final transducers = signalMetadata.transducers;
+      final physicalMinimums = signalMetadata.physicalMinimums;
+      final physicalMaximums = signalMetadata.physicalMaximums;
 
       _writer = NativeCore.instance.openEdfWithLabels(
         _path!,
@@ -209,30 +207,15 @@ class EdfRecorder extends ChangeNotifier {
         physicalMaximums: physicalMaximums,
       );
     } else {
-      final labels = [
-        ...List.generate(_signalChannelCount, (i) => 'EEG ${i + 1}'),
-        'Marker',
-      ];
-      final physDims = [...List.filled(_signalChannelCount, 'uV'), 'code'];
-      final prefilters = [
-        ...List.filled(
-          _signalChannelCount,
-          _dcBlockElectrophysiology ? 'HP:0.2Hz software DC block' : 'None',
-        ),
-        'HP:0 LP:0',
-      ];
-      final transducers = [
-        ...List.filled(_signalChannelCount, 'frontal electrode'),
-        'Event markers',
-      ];
-      final physicalMinimums = [
-        ...List.filled(_signalChannelCount, -3000.0),
-        -32768.0,
-      ];
-      final physicalMaximums = [
-        ...List.filled(_signalChannelCount, 3000.0),
-        32767.0,
-      ];
+      final labels = List.generate(_signalChannelCount, (i) => 'EEG ${i + 1}');
+      final physDims = List.filled(_signalChannelCount, 'uV');
+      final prefilters = List.filled(
+        _signalChannelCount,
+        _dcBlockElectrophysiology ? 'HP:0.2Hz software DC block' : 'None',
+      );
+      final transducers = List.filled(_signalChannelCount, 'frontal electrode');
+      final physicalMinimums = List.filled(_signalChannelCount, -3000.0);
+      final physicalMaximums = List.filled(_signalChannelCount, 3000.0);
       _writer = NativeCore.instance.openEdfWithLabels(
         _path!,
         cleanSubject,
@@ -309,12 +292,23 @@ class EdfRecorder extends ChangeNotifier {
     return _segmentIndex;
   }
 
-  void setMarker(int code) {
-    _activeMarkerCode = code;
-    // Hold marker pulse for ~20 ms (5 samples at 250 Hz, 2 samples at 100 Hz, at least 1 sample)
-    _markerHoldCounter = (_sampleRate * 0.02).ceil().clamp(1, 20);
+  void setMarker(int code, {String? label}) => injectMarker(code, label: label);
+
+  void injectMarker(int code, {String? label, double durationSeconds = 0.0}) {
+    final text = (label != null && label.trim().isNotEmpty)
+        ? '${label.trim()} ($code)'
+        : 'Marker $code';
+    if (_writer != nullptr) {
+      final onsetSec = _samplesWritten / _sampleRate;
+      NativeCore.instance.pushEdfAnnotation(
+        _writer,
+        onsetSec,
+        durationSeconds,
+        text,
+      );
+    }
     debugPrint(
-      '[EdfRecorder] Marker: $code (hold for $_markerHoldCounter samples)',
+      '[EdfRecorder] EDF+ Annotation: $text at ${(_samplesWritten / _sampleRate).toStringAsFixed(3)}s',
     );
   }
 
@@ -338,16 +332,8 @@ class EdfRecorder extends ChangeNotifier {
         values[writeIdx++] = value;
       }
     }
-    if (_markerHoldCounter > 0) {
-      values[_edfChannelCount - 1] = _activeMarkerCode.toDouble();
-      _markerHoldCounter--;
-      if (_markerHoldCounter == 0) {
-        _activeMarkerCode = 0;
-      }
-    } else {
-      values[_edfChannelCount - 1] = 0.0;
-    }
     NativeCore.instance.pushEdfSample(_writer, values);
+    _samplesWritten++;
   }
 
   Future<String?> stop() async {

@@ -101,6 +101,10 @@ class AcquisitionService extends ChangeNotifier {
 
   StreamSubscription<classic.BluetoothDiscoveryResult>? _classicScanSub;
   StreamSubscription<List<ble.ScanResult>>? _bleScanSub;
+  StreamSubscription<bool>? _bleIsScanningSub;
+  Timer? _scanTimeoutTimer;
+  String? _lastScanError;
+  bool _includeAllBle = false;
   StreamSubscription<Uint8List>? _classicInputSub;
   StreamSubscription<List<int>>? _bleNotifySub;
   classic.BluetoothConnection? _classicConnection;
@@ -152,6 +156,7 @@ class AcquisitionService extends ChangeNotifier {
   Stream<List<EegDevice>> get devices => _devices.stream;
   List<EegDevice> get discoveredDevices => List.unmodifiable(_seenDevices);
   AcquisitionState get currentState => _currentState;
+  String? get lastScanError => _lastScanError;
   String get connectedDeviceLabel => _lastConnectedDevice?.name ?? 'EEG';
   String? get connectedDeviceId => _lastConnectedDevice?.id;
   DeviceKind? get connectedDeviceKind => _lastConnectedDevice?.kind;
@@ -370,16 +375,16 @@ class AcquisitionService extends ChangeNotifier {
       bleDev.remoteId.toString(),
       ConnectionTransport.bluetoothLe,
     );
-    if (profile == null) return;
+    if (profile == null && (!_includeAllBle || name.trim().isEmpty)) return;
     final device = EegDevice(
       name: name.isEmpty ? 'Unknown BLE device' : name,
       id: bleDev.remoteId.toString(),
-      kind: _kindForProfile(profile),
+      kind: profile != null ? _kindForProfile(profile) : DeviceKind.generic,
       isBle: true,
-      profileId: profile.id,
+      profileId: profile?.id,
     );
     _addDevice(device);
-    if (autoConnect && profile.autoConnect) {
+    if (autoConnect && profile != null && profile.autoConnect) {
       debugPrint(
         '[AcquisitionService] Found BLE target device $name (${device.id}). Auto-connecting!',
       );
@@ -394,7 +399,10 @@ class AcquisitionService extends ChangeNotifier {
     _handleBleDevice(result.device, autoConnect: autoConnect, customName: name);
   }
 
-  Future<void> scan({bool autoConnect = true}) async {
+  Future<void> scan({
+    bool autoConnect = true,
+    bool includeAllBle = false,
+  }) async {
     if (_currentState == AcquisitionState.connecting ||
         _currentState == AcquisitionState.streaming) {
       debugPrint(
@@ -402,9 +410,51 @@ class AcquisitionService extends ChangeNotifier {
       );
       return;
     }
+    _scanTimeoutTimer?.cancel();
+    _scanTimeoutTimer = null;
+    await _bleIsScanningSub?.cancel();
+    _bleIsScanningSub = null;
+    _lastScanError = null;
+    _includeAllBle = includeAllBle;
+
     await requestPermissions();
     _setState(AcquisitionState.scanning);
     _publishDevices();
+
+    // Ensure the BLE adapter is powered on and authorized (fixes cold-start
+    // macOS CoreBluetooth / iOS scans hanging indefinitely on first open).
+    try {
+      var adapterState = ble.FlutterBluePlus.adapterStateNow;
+      if (adapterState != ble.BluetoothAdapterState.on) {
+        adapterState = await ble.FlutterBluePlus.adapterState
+            .where(
+              (s) =>
+                  s == ble.BluetoothAdapterState.on ||
+                  s == ble.BluetoothAdapterState.off ||
+                  s == ble.BluetoothAdapterState.unauthorized ||
+                  s == ble.BluetoothAdapterState.unavailable,
+            )
+            .first
+            .timeout(const Duration(seconds: 4));
+      }
+      if (adapterState != ble.BluetoothAdapterState.on) {
+        _lastScanError = switch (adapterState) {
+          ble.BluetoothAdapterState.off =>
+            'Bluetooth is turned off. Enable Bluetooth and scan again.',
+          ble.BluetoothAdapterState.unauthorized =>
+            'Bluetooth permission was denied. Allow access in System Settings.',
+          ble.BluetoothAdapterState.unavailable =>
+            'Bluetooth hardware is unavailable on this device.',
+          _ => 'Bluetooth adapter did not become ready ($adapterState).',
+        };
+        _setState(AcquisitionState.disconnected);
+        return;
+      }
+    } catch (e) {
+      _lastScanError = 'Timed out waiting for Bluetooth adapter: $e';
+      _setState(AcquisitionState.disconnected);
+      return;
+    }
 
     // 1. Immediately check cached scan results from recent scans
     for (final result in ble.FlutterBluePlus.lastScanResults) {
@@ -422,15 +472,24 @@ class AcquisitionService extends ChangeNotifier {
     }
 
     await _bleScanSub?.cancel();
-    _bleScanSub = ble.FlutterBluePlus.scanResults.listen((results) {
-      for (final result in results) {
-        _handleBleScanResult(result, autoConnect: autoConnect);
-      }
-    });
+    _bleScanSub = ble.FlutterBluePlus.scanResults.listen(
+      (results) {
+        for (final result in results) {
+          _handleBleScanResult(result, autoConnect: autoConnect);
+        }
+      },
+      onError: (Object error) {
+        _lastScanError = 'BLE scan error: $error';
+        unawaited(stopScan());
+      },
+    );
 
     await _classicScanSub?.cancel();
-    final hasClassicProfiles = (_settings?.deviceProfiles ?? defaultDeviceProfiles())
-        .any((p) => p.enabled && p.transport == ConnectionTransport.bluetoothClassic);
+    final hasClassicProfiles =
+        (_settings?.deviceProfiles ?? defaultDeviceProfiles()).any(
+          (p) =>
+              p.enabled && p.transport == ConnectionTransport.bluetoothClassic,
+        );
     if (Platform.isAndroid && hasClassicProfiles) {
       _classicScanSub = classic.FlutterBluetoothSerial.instance
           .startDiscovery()
@@ -455,27 +514,63 @@ class AcquisitionService extends ChangeNotifier {
       _classicScanSub = null;
     }
 
-    await ble.FlutterBluePlus.startScan(
-      timeout: const Duration(seconds: 20),
-      continuousUpdates: true,
-      androidCheckLocationServices: false,
-    );
-
-    Future<void>.delayed(const Duration(seconds: 21), () async {
-      if (_currentState == AcquisitionState.scanning) {
-        await stopScan();
-        _setState(AcquisitionState.disconnected);
+    var scanStarted = false;
+    _bleIsScanningSub = ble.FlutterBluePlus.isScanning.listen((scanning) {
+      if (scanning) {
+        scanStarted = true;
+      } else if (scanStarted && _currentState == AcquisitionState.scanning) {
+        unawaited(_finishScan());
       }
     });
+
+    try {
+      await ble.FlutterBluePlus.startScan(
+        timeout: const Duration(seconds: 12),
+        continuousUpdates: true,
+        androidCheckLocationServices: false,
+      );
+      _scanTimeoutTimer = Timer(const Duration(seconds: 13), () {
+        if (_currentState == AcquisitionState.scanning) {
+          unawaited(stopScan());
+        }
+      });
+    } catch (e) {
+      debugPrint('[AcquisitionService] startScan failed: $e');
+      _lastScanError = 'Could not start Bluetooth scan: $e';
+      await stopScan();
+    }
   }
 
-  Future<void> stopScan() async {
+  Future<void> _finishScan() async {
+    _scanTimeoutTimer?.cancel();
+    _scanTimeoutTimer = null;
+    await _bleIsScanningSub?.cancel();
+    _bleIsScanningSub = null;
     await _classicScanSub?.cancel();
     _classicScanSub = null;
     await _bleScanSub?.cancel();
     _bleScanSub = null;
-    if (ble.FlutterBluePlus.isScanningNow) {
-      await ble.FlutterBluePlus.stopScan();
+    if (_currentState == AcquisitionState.scanning) {
+      _setState(AcquisitionState.disconnected);
+    }
+  }
+
+  Future<void> stopScan() async {
+    _scanTimeoutTimer?.cancel();
+    _scanTimeoutTimer = null;
+    await _bleIsScanningSub?.cancel();
+    _bleIsScanningSub = null;
+    await _classicScanSub?.cancel();
+    _classicScanSub = null;
+    await _bleScanSub?.cancel();
+    _bleScanSub = null;
+    try {
+      if (ble.FlutterBluePlus.isScanningNow) {
+        await ble.FlutterBluePlus.stopScan();
+      }
+    } catch (_) {}
+    if (_currentState == AcquisitionState.scanning) {
+      _setState(AcquisitionState.disconnected);
     }
   }
 
@@ -1438,14 +1533,31 @@ class AcquisitionService extends ChangeNotifier {
         DeviceProtocol.lsl => DeviceKind.generic,
       };
 
-  DeviceProfile? _matchingProfile(
-    String name,
-    String address,
-    ConnectionTransport transport,
-  ) {
-    final upperName = name.toUpperCase();
-    final upperAddress = address.toUpperCase();
+  /// Switches the active profile for the currently connected device so channel
+  /// labels, roles, and capture maps update live without dropping the link.
+  void switchActiveProfile(DeviceProfile profile) {
+    final current = _lastConnectedDevice;
+    if (current == null) return;
+    _lastConnectedDevice = EegDevice(
+      name: current.name,
+      id: current.id,
+      kind: _kindForProfile(profile),
+      isBle: current.isBle,
+      profileId: profile.id,
+    );
+    notifyListeners();
+  }
+
+  /// Returns all enabled profiles matching [device] (sorted with default first).
+  List<DeviceProfile> matchingProfilesFor(EegDevice device) {
+    if (device.kind == DeviceKind.synthetic) return const [];
+    final transport = device.isBle
+        ? ConnectionTransport.bluetoothLe
+        : ConnectionTransport.bluetoothClassic;
+    final upperName = device.name.toUpperCase();
+    final upperAddress = device.id.toUpperCase();
     final profiles = _settings?.deviceProfiles ?? defaultDeviceProfiles();
+    final matches = <DeviceProfile>[];
     for (final profile in profiles) {
       if (!profile.enabled || profile.transport != transport) continue;
       final namePattern = profile.advertisedNamePattern.trim().toUpperCase();
@@ -1456,13 +1568,48 @@ class AcquisitionService extends ChangeNotifier {
               upperName.startsWith(namePattern));
       final addressMatches =
           addressPattern.isNotEmpty && upperAddress.contains(addressPattern);
-      if (nameMatches || addressMatches) return profile;
+      if (nameMatches || addressMatches) {
+        matches.add(profile);
+      }
     }
-    return null;
+    matches.sort((a, b) {
+      if (a.isDefaultForHardware == b.isDefaultForHardware) return 0;
+      return a.isDefaultForHardware ? -1 : 1;
+    });
+    return matches;
+  }
+
+  DeviceProfile? _matchingProfile(
+    String name,
+    String address,
+    ConnectionTransport transport,
+  ) {
+    final upperName = name.toUpperCase();
+    final upperAddress = address.toUpperCase();
+    final profiles = _settings?.deviceProfiles ?? defaultDeviceProfiles();
+    DeviceProfile? fallback;
+    for (final profile in profiles) {
+      if (!profile.enabled || profile.transport != transport) continue;
+      final namePattern = profile.advertisedNamePattern.trim().toUpperCase();
+      final addressPattern = profile.addressPattern.trim().toUpperCase();
+      final nameMatches =
+          namePattern.isNotEmpty &&
+          (upperName.contains(namePattern) ||
+              upperName.startsWith(namePattern));
+      final addressMatches =
+          addressPattern.isNotEmpty && upperAddress.contains(addressPattern);
+      if (nameMatches || addressMatches) {
+        if (profile.isDefaultForHardware) return profile;
+        fallback ??= profile;
+      }
+    }
+    return fallback;
   }
 
   void _addDevice(EegDevice device) {
-    if (device.kind != DeviceKind.synthetic && device.profileId == null) {
+    if (device.kind != DeviceKind.synthetic &&
+        device.profileId == null &&
+        !_includeAllBle) {
       return;
     }
     final normalized = device;

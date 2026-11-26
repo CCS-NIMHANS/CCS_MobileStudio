@@ -5,7 +5,11 @@ import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 
 import '../../core/eeg/acquisition_service.dart';
+import '../../core/models/eeg_sample.dart';
+import '../../core/models/stream_marker.dart';
 import '../../core/services/session_manager.dart';
+import '../generic_erp/erp_averager.dart';
+import '../generic_erp/generic_erp_screen.dart';
 import '../home/home_screen.dart';
 import 'models/experiment_models.dart';
 import 'stimulus_renderer.dart';
@@ -38,6 +42,10 @@ class _WmExperimentScreenState extends State<WmExperimentScreen> {
   VoidCallback? _sessionSub;
   VoidCallback? _runnerSub;
   StreamSubscription<AcquisitionState>? _acqStateSub;
+  StreamSubscription<EegSample>? _erpSampleSub;
+  StreamSubscription<StreamMarker>? _markerSub;
+  late final ErpAverager _realtimeErp;
+  bool _showRealtimeErp = true;
   bool _isFinishing = false;
   Future<void>? _finishFuture;
   bool _waitingForReconnect = false;
@@ -54,7 +62,21 @@ class _WmExperimentScreenState extends State<WmExperimentScreen> {
     _sessionSub = () {
       if (!mounted) return;
       final runner = widget.module.runner;
-      if (widget.module.recordEeg) {
+      _realtimeErp = ErpAverager(
+      sampleRate: widget.acquisitionService.sampleRate,
+    );
+    _erpSampleSub = widget.acquisitionService.samples.listen(
+      _realtimeErp.push,
+    );
+    _markerSub = widget.sessionManager.eventMarkers.listen((marker) {
+      if (marker.value.startsWith('encoding_')) {
+        _realtimeErp.mark(
+          marker.value.endsWith('_left') ? 'Left' : 'Right',
+        );
+      }
+    });
+
+    if (widget.module.recordEeg) {
         if (!widget.sessionManager.isStreaming &&
             !runner.isPaused &&
             runner.isRunning) {
@@ -75,6 +97,20 @@ class _WmExperimentScreenState extends State<WmExperimentScreen> {
       }
     };
     widget.module.runner.addListener(_runnerSub!);
+
+    _realtimeErp = ErpAverager(
+      sampleRate: widget.acquisitionService.sampleRate,
+    );
+    _erpSampleSub = widget.acquisitionService.samples.listen(
+      _realtimeErp.push,
+    );
+    _markerSub = widget.sessionManager.eventMarkers.listen((marker) {
+      if (marker.value.startsWith('encoding_')) {
+        _realtimeErp.mark(
+          marker.value.endsWith('_left') ? 'Left' : 'Right',
+        );
+      }
+    });
 
     if (widget.module.recordEeg) {
       _acqStateSub = widget.acquisitionService.state.listen(
@@ -120,6 +156,9 @@ class _WmExperimentScreenState extends State<WmExperimentScreen> {
       widget.module.runner.removeListener(_runnerSub!);
     }
     _acqStateSub?.cancel();
+    _erpSampleSub?.cancel();
+    _markerSub?.cancel();
+    _realtimeErp.dispose();
     super.dispose();
   }
 
@@ -234,16 +273,60 @@ class _WmExperimentScreenState extends State<WmExperimentScreen> {
                 Positioned(
                   top: 24,
                   right: 24,
-                  child: IconButton(
-                    icon: const Icon(
-                      Icons.close,
-                      color: Colors.white54,
-                      size: 32,
-                    ),
-                    tooltip: 'Exit Experiment',
-                    onPressed: _showExitConfirmation,
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      IconButton(
+                        tooltip: _showRealtimeErp
+                            ? 'Hide realtime CDA ERP'
+                            : 'Show realtime CDA ERP',
+                        icon: Icon(
+                          Icons.show_chart,
+                          color: _showRealtimeErp
+                              ? const Color(0xFF14B8A6)
+                              : Colors.white38,
+                          size: 26,
+                        ),
+                        onPressed: () =>
+                            setState(() => _showRealtimeErp = !_showRealtimeErp),
+                      ),
+                      IconButton(
+                        icon: const Icon(
+                          Icons.close,
+                          color: Colors.white54,
+                          size: 32,
+                        ),
+                        tooltip: 'Exit Experiment',
+                        onPressed: _showExitConfirmation,
+                      ),
+                    ],
                   ),
                 ),
+                if (_showRealtimeErp)
+                  ValueListenableBuilder<int>(
+                    valueListenable: _realtimeErp.version,
+                    builder: (_, __, ___) {
+                      final averages = _realtimeErp.averages;
+                      if (averages.isEmpty) return const SizedBox.shrink();
+                      return Positioned(
+                        left: 16,
+                        bottom: 16,
+                        width: 300,
+                        height: 150,
+                        child: DecoratedBox(
+                          decoration: BoxDecoration(
+                            border: Border.all(color: Colors.white24),
+                          ),
+                          child: ErpWaveformPlot(
+                            averages: averages,
+                            counts: _realtimeErp.counts,
+                            sampleRate: widget.acquisitionService.sampleRate,
+                            component: 'CDA',
+                          ),
+                        ),
+                      );
+                    },
+                  ),
                 if (_waitingForReconnect) _buildConnectionLostOverlay(),
               ],
             ),

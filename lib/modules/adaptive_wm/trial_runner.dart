@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:io';
 import 'dart:math';
 import 'package:flutter/material.dart';
+import 'package:flutter/scheduler.dart';
 import 'package:path_provider/path_provider.dart';
 import 'models/experiment_models.dart';
 
@@ -15,6 +16,7 @@ class TrialRunner extends ChangeNotifier {
   bool _isRunning = false;
   bool _paused = false;
   Completer<void>? _resumeCompleter;
+  Completer<void>? _delayInterruptCompleter;
   Timer? _elapsedTimer;
   int elapsedSeconds = 0;
   int _currentTrialNum = 0;
@@ -50,6 +52,9 @@ class TrialRunner extends ChangeNotifier {
     if (!_isRunning || _paused) return;
     _paused = true;
     _resumeCompleter = Completer<void>();
+    if (!(_delayInterruptCompleter?.isCompleted ?? true)) {
+      _delayInterruptCompleter!.complete();
+    }
     notifyListeners();
   }
 
@@ -113,6 +118,9 @@ class TrialRunner extends ChangeNotifier {
     _isRunning = false;
     _elapsedTimer?.cancel();
     _elapsedTimer = null;
+    if (!(_delayInterruptCompleter?.isCompleted ?? true)) {
+      _delayInterruptCompleter!.complete();
+    }
     _responseCompleter?.complete(MatchDecision.noResponse);
     notifyListeners();
   }
@@ -128,6 +136,17 @@ class TrialRunner extends ChangeNotifier {
     _responseCompleter!.complete(decision);
   }
 
+  void _emitFrameLockedMarker(String label, int marker) {
+    try {
+      SchedulerBinding.instance.addPostFrameCallback((_) {
+        if (_isRunning) _pushMarker(label, marker);
+      });
+    } catch (_) {
+      // Pure Dart unit test without WidgetsBinding initialized.
+      _pushMarker(label, marker);
+    }
+  }
+
   Future<void> _runTrial(TrialPlan trial) async {
     final trialStartGlobalMs =
         DateTime.now().millisecondsSinceEpoch - _sessionStartMs;
@@ -136,8 +155,8 @@ class TrialRunner extends ChangeNotifier {
 
     final fixationOnsetGlobalMs =
         DateTime.now().millisecondsSinceEpoch - _sessionStartMs;
-    _pushMarker('fixation', 88);
     _transitionTo(TrialPhase.fixation, trial);
+    _emitFrameLockedMarker('fixation', 88);
     await _delay(fixationDurationMs);
 
     final cueOnsetGlobalMs =
@@ -149,11 +168,11 @@ class TrialRunner extends ChangeNotifier {
         DateTime.now().millisecondsSinceEpoch - _sessionStartMs;
     final encodingMarker =
         (trial.setSize * 10) + (trial.cuedHemifield == Hemifield.left ? 1 : 9);
-    _pushMarker(
+    _transitionTo(TrialPhase.encoding, trial);
+    _emitFrameLockedMarker(
       'encoding_sz${trial.setSize}_${trial.cuedHemifield.name}',
       encodingMarker,
     );
-    _transitionTo(TrialPhase.encoding, trial);
     await _delay(encodingDurationMs);
 
     final maintenanceOnsetGlobalMs =
@@ -243,17 +262,25 @@ class TrialRunner extends ChangeNotifier {
   }
 
   Future<void> _delay(int milliseconds) async {
-    if (!_isRunning) return;
-    final endTime = DateTime.now().millisecondsSinceEpoch + milliseconds;
-    while (DateTime.now().millisecondsSinceEpoch < endTime) {
-      if (!_isRunning) return;
+    var remaining = milliseconds;
+    while (remaining > 0 && _isRunning) {
       if (_paused) {
-        final remaining = endTime - DateTime.now().millisecondsSinceEpoch;
         await _resumeCompleter?.future;
         if (!_isRunning) return;
-        return _delay(remaining);
+        continue;
       }
-      await Future.delayed(const Duration(milliseconds: 20));
+      final sw = Stopwatch()..start();
+      final interrupt = Completer<void>();
+      _delayInterruptCompleter = interrupt;
+      final timer = Timer(Duration(milliseconds: remaining), () {
+        if (!interrupt.isCompleted) interrupt.complete();
+      });
+      await interrupt.future;
+      timer.cancel();
+      if (identical(_delayInterruptCompleter, interrupt)) {
+        _delayInterruptCompleter = null;
+      }
+      remaining -= sw.elapsedMilliseconds;
     }
   }
 

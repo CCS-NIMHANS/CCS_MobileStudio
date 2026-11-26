@@ -102,6 +102,7 @@ class _ExperimentScreenState extends State<ExperimentScreen> {
   bool _savedToPublic = false;
   bool _isFinishing = false;
   bool _waitingForReconnect = false;
+  bool _showRealtimeErp = true;
 
   @override
   void initState() {
@@ -142,7 +143,7 @@ class _ExperimentScreenState extends State<ExperimentScreen> {
       sampleRate: widget.acquisitionService.sampleRate,
     );
     _erpSampleSub = widget.acquisitionService.samples.listen((sample) {
-      if (_realtimeErp.push(sample) && mounted) setState(() {});
+      _realtimeErp.push(sample);
     });
 
     _erpEngine.onStateChanged = () {
@@ -249,6 +250,7 @@ class _ExperimentScreenState extends State<ExperimentScreen> {
     if (!_isFinishing) {
       widget.sessionManager.stopSession();
     }
+    _realtimeErp.dispose();
     _erpEngine.dispose();
     super.dispose();
   }
@@ -575,31 +577,58 @@ class _ExperimentScreenState extends State<ExperimentScreen> {
                 Positioned(
                   top: 15,
                   right: 15,
-                  child: IconButton(
-                    icon: const Icon(
-                      Icons.close,
-                      color: Colors.white70,
-                      size: 28,
-                    ),
-                    onPressed: _showExitConfirmation,
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      IconButton(
+                        tooltip: _showRealtimeErp
+                            ? 'Hide realtime ERP'
+                            : 'Show realtime ERP',
+                        icon: Icon(
+                          Icons.show_chart,
+                          color: _showRealtimeErp
+                              ? Colors.tealAccent
+                              : Colors.white38,
+                          size: 24,
+                        ),
+                        onPressed: () =>
+                            setState(() => _showRealtimeErp = !_showRealtimeErp),
+                      ),
+                      IconButton(
+                        icon: const Icon(
+                          Icons.close,
+                          color: Colors.white70,
+                          size: 28,
+                        ),
+                        onPressed: _showExitConfirmation,
+                      ),
+                    ],
                   ),
                 ),
-                if (_realtimeErp.averages.isNotEmpty)
-                  Positioned(
-                    left: 12,
-                    bottom: 12,
-                    width: 300,
-                    height: 150,
-                    child: DecoratedBox(
-                      decoration: BoxDecoration(
-                        border: Border.all(color: Colors.white24),
-                      ),
-                      child: ErpWaveformPlot(
-                        averages: _realtimeErp.averages,
-                        sampleRate: widget.acquisitionService.sampleRate,
-                        component: widget.erpComponent,
-                      ),
-                    ),
+                if (_showRealtimeErp)
+                  ValueListenableBuilder<int>(
+                    valueListenable: _realtimeErp.version,
+                    builder: (_, __, ___) {
+                      final averages = _realtimeErp.averages;
+                      if (averages.isEmpty) return const SizedBox.shrink();
+                      return Positioned(
+                        left: 12,
+                        bottom: 12,
+                        width: 300,
+                        height: 150,
+                        child: DecoratedBox(
+                          decoration: BoxDecoration(
+                            border: Border.all(color: Colors.white24),
+                          ),
+                          child: ErpWaveformPlot(
+                            averages: averages,
+                            counts: _realtimeErp.counts,
+                            sampleRate: widget.acquisitionService.sampleRate,
+                            component: widget.erpComponent,
+                          ),
+                        ),
+                      );
+                    },
                   ),
                 if (_waitingForReconnect) _buildConnectionLostOverlay(),
               ],

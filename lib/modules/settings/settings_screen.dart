@@ -1,6 +1,7 @@
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
+import '../../core/theme/studio_theme.dart';
 import 'package:provider/provider.dart';
 
 import 'package:package_info_plus/package_info_plus.dart';
@@ -20,7 +21,9 @@ import '../../core/eeg/acquisition_service.dart';
 /// Controls LSL streaming properties, EEG/fNIRS channel names and enablement,
 /// and auditory alert test functions.
 class SettingsScreen extends StatefulWidget {
-  const SettingsScreen({super.key});
+  const SettingsScreen({super.key, this.initialTabIndex = 0});
+
+  final int initialTabIndex;
 
   @override
   State<SettingsScreen> createState() => _SettingsScreenState();
@@ -36,7 +39,11 @@ class _SettingsScreenState extends State<SettingsScreen>
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 3, vsync: this);
+    _tabController = TabController(
+      length: 3,
+      vsync: this,
+      initialIndex: widget.initialTabIndex.clamp(0, 2),
+    );
     final settings = context.read<SettingsService>();
     _xampPrefixCtrl = TextEditingController(text: settings.xampPrefix);
     _eegStreamNameCtrl = TextEditingController(
@@ -61,26 +68,26 @@ class _SettingsScreenState extends State<SettingsScreen>
     final channelConfig = context.watch<ChannelConfigService>();
     final settings = context.watch<SettingsService>();
     final alertService = context.watch<AlertService>();
-    final lightTeal = const Color(0xFF14B8A6);
+    final lightTeal = StudioColors.teal;
     final compact = MediaQuery.sizeOf(context).width < 600;
 
     return Scaffold(
-      backgroundColor: const Color(0xFF0B0F19),
+      backgroundColor: StudioColors.canvas,
       appBar: AppBar(
         title: Text(
           compact ? 'Settings' : 'Global Settings & Channels',
-          style: TextStyle(color: Colors.white),
+          style: TextStyle(color: StudioColors.textPrimary),
         ),
-        backgroundColor: const Color(0xFF111827),
+        backgroundColor: StudioColors.surface,
         elevation: 0,
-        iconTheme: const IconThemeData(color: Colors.white),
+        iconTheme: const IconThemeData(color: StudioColors.textPrimary),
         bottom: TabBar(
           controller: _tabController,
           isScrollable: true,
           tabAlignment: TabAlignment.start,
           indicatorColor: lightTeal,
           labelColor: lightTeal,
-          unselectedLabelColor: Colors.white54,
+          unselectedLabelColor: StudioColors.textMuted,
           tabs: const [
             Tab(text: 'Channel Configuration'),
             Tab(text: 'Device & Network Settings'),
@@ -107,75 +114,240 @@ class _SettingsScreenState extends State<SettingsScreen>
     return ListView(
       padding: EdgeInsets.all(compact ? 12 : 20),
       children: [
-        Row(
+        Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          crossAxisAlignment: WrapCrossAlignment.center,
+          alignment: WrapAlignment.spaceBetween,
           children: [
-            const Expanded(
-              child: Text(
-                'Device & Signal Profiles',
-                style: TextStyle(
-                  color: Colors.white,
-                  fontSize: 17,
-                  fontWeight: FontWeight.bold,
-                ),
+            const Text(
+              'Device & Project Profiles',
+              style: TextStyle(
+                color: StudioColors.textPrimary,
+                fontSize: 17,
+                fontWeight: FontWeight.bold,
               ),
             ),
-            ElevatedButton.icon(
-              onPressed: () => _createDeviceProfile(settings),
-              icon: const Icon(Icons.add, size: 18),
-              label: const Text('Device'),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: lightTeal,
-                foregroundColor: Colors.black,
-              ),
+            Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                OutlinedButton.icon(
+                  onPressed: () async {
+                    try {
+                      final imported = await settings.importDeviceProfileJson();
+                      if (!mounted || imported == null) return;
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: Text('Imported profile "${imported.name}"'),
+                        ),
+                      );
+                    } catch (e) {
+                      if (!mounted) return;
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(content: Text('Import failed: $e')),
+                      );
+                    }
+                  },
+                  icon: const Icon(Icons.file_upload_outlined, size: 17),
+                  label: const Text('Import'),
+                ),
+                const SizedBox(width: 8),
+                ElevatedButton.icon(
+                  onPressed: () => _createDeviceProfile(settings),
+                  icon: const Icon(Icons.add, size: 18),
+                  label: const Text('New Profile'),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: lightTeal,
+                    foregroundColor: Colors.white,
+                  ),
+                ),
+              ],
             ),
           ],
         ),
         const SizedBox(height: 8),
         const Text(
-          'A device defines how it connects and decodes data. Each signal '
-          'stream independently defines type, channels, sampling rate, unit, '
-          'and safe EDF range. Different rates are saved as synchronized files.',
-          style: TextStyle(color: Colors.white54, fontSize: 13),
+          'Create multiple profiles for the same amplifier (e.g., Sleep PSG vs. '
+          'Resting EEG vs. ERP). Duplicate a profile, set an active default for '
+          'auto-matching, or switch profiles directly in the Connect dialog.',
+          style: TextStyle(color: StudioColors.textMuted, fontSize: 13),
         ),
         const SizedBox(height: 14),
-        ...settings.deviceProfiles.map(
-          (profile) => Card(
-            color: const Color(0xFF1E293B),
+        ...settings.deviceProfiles.map((profile) {
+          final isCore = profile.id == 'xamp_l10' || profile.id == 'orbit';
+          return Card(
+            color: StudioColors.card,
             margin: const EdgeInsets.only(bottom: 10),
-            child: ListTile(
-              leading: Icon(
-                profile.transport == ConnectionTransport.lsl
-                    ? Icons.wifi
-                    : Icons.bluetooth,
-                color: profile.enabled ? lightTeal : Colors.white30,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12),
+              side: BorderSide(
+                color: profile.isDefaultForHardware
+                    ? lightTeal.withValues(alpha: 0.7)
+                    : StudioColors.border,
               ),
-              title: Text(
-                profile.name,
-                style: TextStyle(
-                  color: profile.enabled ? Colors.white : Colors.white38,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-              subtitle: Text(
-                '${profile.transport.label} • ${profile.protocol.label}\n'
-                '${profile.enabledStreams.map((stream) => '${stream.signalType.label}: ${stream.channelCount} ch @ ${stream.sampleRate} Hz').join('  •  ')}',
-                style: const TextStyle(color: Colors.white54, fontSize: 12),
-              ),
-              isThreeLine: true,
-              trailing: const Icon(Icons.edit_outlined, color: Colors.white54),
-              onTap: () => _showDeviceProfileDialog(settings, profile),
             ),
-          ),
-        ),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Icon(
+                        profile.transport == ConnectionTransport.lsl
+                            ? Icons.wifi
+                            : Icons.bluetooth,
+                        color: profile.enabled ? lightTeal : Colors.white30,
+                      ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Wrap(
+                              spacing: 8,
+                              runSpacing: 4,
+                              crossAxisAlignment: WrapCrossAlignment.center,
+                              children: [
+                                Text(
+                                  profile.name,
+                                  style: TextStyle(
+                                    color: profile.enabled
+                                        ? StudioColors.textPrimary
+                                        : StudioColors.textMuted,
+                                    fontWeight: FontWeight.w700,
+                                    fontSize: 15,
+                                  ),
+                                ),
+                                if (profile.projectTag.trim().isNotEmpty)
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 7,
+                                      vertical: 2,
+                                    ),
+                                    decoration: BoxDecoration(
+                                      color: const Color(
+                                        0xFF38BDF8,
+                                      ).withValues(alpha: 0.16),
+                                      borderRadius: BorderRadius.circular(6),
+                                    ),
+                                    child: Text(
+                                      profile.projectTag,
+                                      style: const TextStyle(
+                                        color: Color(0xFF38BDF8),
+                                        fontSize: 10.5,
+                                        fontWeight: FontWeight.w600,
+                                      ),
+                                    ),
+                                  ),
+                                if (profile.isDefaultForHardware)
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 7,
+                                      vertical: 2,
+                                    ),
+                                    decoration: BoxDecoration(
+                                      color: lightTeal.withValues(alpha: 0.18),
+                                      borderRadius: BorderRadius.circular(6),
+                                    ),
+                                    child: Text(
+                                      'ACTIVE DEFAULT',
+                                      style: TextStyle(
+                                        color: lightTeal,
+                                        fontSize: 10,
+                                        fontWeight: FontWeight.w800,
+                                      ),
+                                    ),
+                                  ),
+                              ],
+                            ),
+                            const SizedBox(height: 3),
+                            Text(
+                              '${profile.transport.label} • ${profile.protocol.label}'
+                              '${profile.advertisedNamePattern.isNotEmpty ? ' • Match "${profile.advertisedNamePattern}"' : ''}\n'
+                              '${profile.enabledStreams.map((stream) => '${stream.signalType.label}: ${stream.channelCount} ch @ ${stream.sampleRate} Hz').join('  •  ')}',
+                              style: const TextStyle(
+                                color: StudioColors.textMuted,
+                                fontSize: 12,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  Wrap(
+                    spacing: 6,
+                    runSpacing: 4,
+                    children: [
+                      if (!profile.isDefaultForHardware &&
+                          profile.transport != ConnectionTransport.lsl)
+                        ActionChip(
+                          avatar: Icon(Icons.check_circle_outline,
+                              size: 15, color: lightTeal),
+                          label: const Text('Set Active Default',
+                              style: TextStyle(fontSize: 11.5)),
+                          onPressed: () =>
+                              settings.setDefaultDeviceProfile(profile.id),
+                        ),
+                      ActionChip(
+                        avatar: const Icon(Icons.copy_outlined,
+                            size: 15, color: Color(0xFF38BDF8)),
+                        label: const Text('Duplicate for Project',
+                            style: TextStyle(fontSize: 11.5)),
+                        onPressed: () =>
+                            _promptDuplicateProfile(settings, profile),
+                      ),
+                      ActionChip(
+                        avatar: const Icon(Icons.edit_outlined,
+                            size: 15, color: StudioColors.textSecondary),
+                        label: const Text('Edit Channels',
+                            style: TextStyle(fontSize: 11.5)),
+                        onPressed: () =>
+                            _showDeviceProfileDialog(settings, profile),
+                      ),
+                      ActionChip(
+                        avatar: const Icon(Icons.download_outlined,
+                            size: 15, color: StudioColors.textSecondary),
+                        label: const Text('Export',
+                            style: TextStyle(fontSize: 11.5)),
+                        onPressed: () async {
+                          final path = await settings.exportDeviceProfileJson(
+                            profile,
+                          );
+                          if (!mounted || path == null) return;
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(content: Text('Profile saved to $path')),
+                          );
+                        },
+                      ),
+                      if (!isCore)
+                        ActionChip(
+                          avatar: const Icon(Icons.delete_outline,
+                              size: 15, color: Colors.redAccent),
+                          label: const Text('Delete',
+                              style: TextStyle(
+                                  fontSize: 11.5, color: Colors.redAccent)),
+                          onPressed: () =>
+                              settings.removeDeviceProfile(profile.id),
+                        ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          );
+        }),
         SwitchListTile(
           contentPadding: const EdgeInsets.symmetric(horizontal: 4),
           title: const Text(
             'Combine Orbit EEG + interpolated PPG',
-            style: TextStyle(color: Colors.white),
+            style: TextStyle(color: StudioColors.textPrimary),
           ),
           subtitle: const Text(
             'On: one 250 Hz EDF with AF7, AF8, PPG, and Marker. Off: EEG at 250 Hz plus a synchronized native 62.5 Hz PPG EDF. Other independently clocked streams remain separate.',
-            style: TextStyle(color: Colors.white54, fontSize: 12),
+            style: TextStyle(color: StudioColors.textMuted, fontSize: 12),
           ),
           value: settings.combineCompatibleStreams,
           activeThumbColor: lightTeal,
@@ -184,6 +356,84 @@ class _SettingsScreenState extends State<SettingsScreen>
         ),
       ],
     );
+  }
+
+  Future<void> _promptDuplicateProfile(
+    SettingsService settings,
+    DeviceProfile source,
+  ) async {
+    final nameCtrl = TextEditingController(text: '${source.name} • Study 2');
+    final projectCtrl = TextEditingController(text: source.projectTag);
+    var makeDefault = true;
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (context, setDialogState) => AlertDialog(
+          backgroundColor: StudioColors.card,
+          title: Text(
+            'Duplicate ${source.name}',
+            style: const TextStyle(color: StudioColors.textPrimary),
+          ),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextField(
+                controller: nameCtrl,
+                style: const TextStyle(color: StudioColors.textPrimary),
+                decoration: const InputDecoration(labelText: 'Profile Name'),
+              ),
+              const SizedBox(height: 10),
+              TextField(
+                controller: projectCtrl,
+                style: const TextStyle(color: StudioColors.textPrimary),
+                decoration: const InputDecoration(
+                  labelText: 'Research Project / Study Tag',
+                  hintText: 'e.g. Sleep PSG, Oddball ERP, Meditation',
+                ),
+              ),
+              const SizedBox(height: 6),
+              CheckboxListTile(
+                contentPadding: EdgeInsets.zero,
+                value: makeDefault,
+                title: const Text(
+                  'Make active default for this hardware',
+                  style: TextStyle(color: StudioColors.textSecondary, fontSize: 13),
+                ),
+                onChanged: (v) =>
+                    setDialogState(() => makeDefault = v ?? true),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: const Text('Cancel'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.pop(ctx, true),
+              child: const Text('Create & Edit'),
+            ),
+          ],
+        ),
+      ),
+    );
+
+    final name = nameCtrl.text.trim();
+    final project = projectCtrl.text.trim();
+    nameCtrl.dispose();
+    projectCtrl.dispose();
+    if (confirmed != true || !mounted) return;
+
+    final copy = settings.duplicateDeviceProfile(
+      source.id,
+      newName: name.isEmpty ? '${source.name} Copy' : name,
+      projectTag: project,
+    );
+    if (makeDefault) {
+      settings.setDefaultDeviceProfile(copy.id);
+    }
+    await _showDeviceProfileDialog(settings, copy);
   }
 
   void _createDeviceProfile(SettingsService settings) {
@@ -218,10 +468,10 @@ class _SettingsScreenState extends State<SettingsScreen>
       context: context,
       builder: (dialogContext) => StatefulBuilder(
         builder: (context, setDialogState) => AlertDialog(
-          backgroundColor: const Color(0xFF1E293B),
+          backgroundColor: StudioColors.card,
           title: Text(
             isNew ? 'Add Device Profile' : 'Edit ${profile.name}',
-            style: const TextStyle(color: Colors.white),
+            style: const TextStyle(color: StudioColors.textPrimary),
           ),
           content: SizedBox(
             width: 680,
@@ -233,7 +483,7 @@ class _SettingsScreenState extends State<SettingsScreen>
                     contentPadding: EdgeInsets.zero,
                     title: const Text(
                       'Profile enabled',
-                      style: TextStyle(color: Colors.white),
+                      style: TextStyle(color: StudioColors.textPrimary),
                     ),
                     value: profile.enabled,
                     onChanged: (value) =>
@@ -241,9 +491,19 @@ class _SettingsScreenState extends State<SettingsScreen>
                   ),
                   TextFormField(
                     initialValue: profile.name,
-                    style: const TextStyle(color: Colors.white),
-                    decoration: const InputDecoration(labelText: 'Device name'),
+                    style: const TextStyle(color: StudioColors.textPrimary),
+                    decoration: const InputDecoration(labelText: 'Device / profile name'),
                     onChanged: (value) => profile.name = value,
+                  ),
+                  const SizedBox(height: 10),
+                  TextFormField(
+                    initialValue: profile.projectTag,
+                    style: const TextStyle(color: StudioColors.textPrimary),
+                    decoration: const InputDecoration(
+                      labelText: 'Research project / study tag (optional)',
+                      hintText: 'e.g. Sleep PSG, Resting EEG, Oddball ERP',
+                    ),
+                    onChanged: (value) => profile.projectTag = value,
                   ),
                   const SizedBox(height: 12),
                   Wrap(
@@ -254,7 +514,7 @@ class _SettingsScreenState extends State<SettingsScreen>
                         width: 260,
                         child: DropdownButtonFormField<ConnectionTransport>(
                           initialValue: profile.transport,
-                          dropdownColor: const Color(0xFF111827),
+                          dropdownColor: StudioColors.surface,
                           decoration: const InputDecoration(
                             labelText: 'Connection transport',
                           ),
@@ -279,7 +539,7 @@ class _SettingsScreenState extends State<SettingsScreen>
                         width: 260,
                         child: DropdownButtonFormField<DeviceProtocol>(
                           initialValue: profile.protocol,
-                          dropdownColor: const Color(0xFF111827),
+                          dropdownColor: StudioColors.surface,
                           decoration: const InputDecoration(
                             labelText: 'Decoder / protocol',
                           ),
@@ -306,7 +566,7 @@ class _SettingsScreenState extends State<SettingsScreen>
                     const SizedBox(height: 12),
                     TextFormField(
                       initialValue: profile.advertisedNamePattern,
-                      style: const TextStyle(color: Colors.white),
+                      style: const TextStyle(color: StudioColors.textPrimary),
                       decoration: const InputDecoration(
                         labelText: 'Advertised-name match',
                         hintText: 'e.g. ORBIT_ or AXXSPU',
@@ -317,7 +577,7 @@ class _SettingsScreenState extends State<SettingsScreen>
                     const SizedBox(height: 12),
                     TextFormField(
                       initialValue: profile.addressPattern,
-                      style: const TextStyle(color: Colors.white),
+                      style: const TextStyle(color: StudioColors.textPrimary),
                       decoration: const InputDecoration(
                         labelText: 'MAC/address match (optional)',
                       ),
@@ -326,7 +586,7 @@ class _SettingsScreenState extends State<SettingsScreen>
                     const SizedBox(height: 12),
                     TextFormField(
                       initialValue: profile.startCommand,
-                      style: const TextStyle(color: Colors.white),
+                      style: const TextStyle(color: StudioColors.textPrimary),
                       decoration: const InputDecoration(
                         labelText: 'Start-stream command (optional)',
                       ),
@@ -336,7 +596,7 @@ class _SettingsScreenState extends State<SettingsScreen>
                       const SizedBox(height: 12),
                       TextFormField(
                         initialValue: profile.delimiter,
-                        style: const TextStyle(color: Colors.white),
+                        style: const TextStyle(color: StudioColors.textPrimary),
                         decoration: const InputDecoration(
                           labelText: 'Field delimiter',
                         ),
@@ -347,7 +607,7 @@ class _SettingsScreenState extends State<SettingsScreen>
                       contentPadding: EdgeInsets.zero,
                       title: const Text(
                         'Auto-connect when matched',
-                        style: TextStyle(color: Colors.white),
+                        style: TextStyle(color: StudioColors.textPrimary),
                       ),
                       value: profile.autoConnect,
                       onChanged: (value) => setDialogState(
@@ -355,14 +615,14 @@ class _SettingsScreenState extends State<SettingsScreen>
                       ),
                     ),
                   ],
-                  const Divider(color: Colors.white24, height: 32),
+                  const Divider(color: StudioColors.border, height: 32),
                   Row(
                     children: [
                       const Expanded(
                         child: Text(
                           'Signal streams',
                           style: TextStyle(
-                            color: Colors.white,
+                            color: StudioColors.textPrimary,
                             fontWeight: FontWeight.bold,
                           ),
                         ),
@@ -392,7 +652,7 @@ class _SettingsScreenState extends State<SettingsScreen>
                     'One stream represents one independently sampled hardware clock. '
                     'A single xAMP is therefore one stream: assign EEG, EOG and EMG '
                     'roles below in decoder/hardware channel order.',
-                    style: TextStyle(color: Colors.white54, fontSize: 12),
+                    style: TextStyle(color: StudioColors.textMuted, fontSize: 12),
                   ),
                   ...profile.streams.asMap().entries.map(
                     (entry) => _buildStreamProfileEditor(
@@ -488,7 +748,7 @@ class _SettingsScreenState extends State<SettingsScreen>
       child: TextFormField(
         initialValue: value.toString(),
         keyboardType: const TextInputType.numberWithOptions(decimal: true),
-        style: const TextStyle(color: Colors.white),
+        style: const TextStyle(color: StudioColors.textPrimary),
         decoration: InputDecoration(labelText: label),
         onChanged: (text) {
           final parsed = double.tryParse(text);
@@ -498,19 +758,19 @@ class _SettingsScreenState extends State<SettingsScreen>
     );
 
     return Card(
-      color: const Color(0xFF111827),
+      color: StudioColors.surface,
       margin: const EdgeInsets.only(top: 10),
       child: ExpansionTile(
         initiallyExpanded: true,
         title: Text(
           'Stream ${index + 1}: ${stream.name} • ${stream.channelCount} ordered ch @ ${stream.sampleRate} Hz',
-          style: const TextStyle(color: Colors.white, fontSize: 14),
+          style: const TextStyle(color: StudioColors.textPrimary, fontSize: 14),
         ),
         subtitle: Text(
           stream.enabled
               ? 'Connected and recorded on this sample clock'
               : 'Disabled — not connected or captured',
-          style: const TextStyle(color: Colors.white54, fontSize: 11),
+          style: const TextStyle(color: StudioColors.textMuted, fontSize: 11),
         ),
         trailing: Row(
           mainAxisSize: MainAxisSize.min,
@@ -533,7 +793,7 @@ class _SettingsScreenState extends State<SettingsScreen>
         children: [
           TextFormField(
             initialValue: stream.name,
-            style: const TextStyle(color: Colors.white),
+            style: const TextStyle(color: StudioColors.textPrimary),
             decoration: const InputDecoration(labelText: 'Stream name'),
             onChanged: (value) => stream.name = value,
           ),
@@ -541,7 +801,7 @@ class _SettingsScreenState extends State<SettingsScreen>
           if (device.transport == ConnectionTransport.lsl) ...[
             DropdownButtonFormField<SignalType>(
               initialValue: stream.signalType,
-              dropdownColor: const Color(0xFF111827),
+              dropdownColor: StudioColors.surface,
               decoration: const InputDecoration(
                 labelText: 'LSL stream type / default channel role',
               ),
@@ -575,10 +835,19 @@ class _SettingsScreenState extends State<SettingsScreen>
                 child: Text(
                   'Hardware channel mapping',
                   style: TextStyle(
-                    color: Colors.white,
+                    color: StudioColors.textPrimary,
                     fontWeight: FontWeight.bold,
                   ),
                 ),
+              ),
+              TextButton.icon(
+                onPressed: () => _bulkEditStreamChannels(
+                  context,
+                  stream,
+                  setDialogState,
+                ),
+                icon: const Icon(Icons.playlist_add, size: 18),
+                label: const Text('Bulk Paste'),
               ),
               TextButton.icon(
                 onPressed: () => setDialogState(() {
@@ -607,11 +876,57 @@ class _SettingsScreenState extends State<SettingsScreen>
                 ),
             ],
           ),
+          Wrap(
+            spacing: 6,
+            runSpacing: 4,
+            children: [
+              ActionChip(
+                label: const Text('10-20 (16-ch)', style: TextStyle(fontSize: 11)),
+                onPressed: () => setDialogState(() {
+                  _applyChannelTemplate(stream, kDefaultEpiDomeLabels);
+                }),
+              ),
+              ActionChip(
+                label: const Text('Sleep PSG (6-ch)', style: TextStyle(fontSize: 11)),
+                onPressed: () => setDialogState(() {
+                  _applyChannelTemplate(
+                    stream,
+                    const ['F3', 'C3', 'O1', 'Reog', 'Leog', 'EMG'],
+                  );
+                }),
+              ),
+              ActionChip(
+                label: const Text('xAMP 8-ch', style: TextStyle(fontSize: 11)),
+                onPressed: () => setDialogState(() {
+                  _applyChannelTemplate(
+                    stream,
+                    const ['Fp1', 'Fp2', 'F3', 'F4', 'C3', 'C4', 'O1', 'O2'],
+                  );
+                }),
+              ),
+              ActionChip(
+                label: Text(
+                  stream.channelEnabled.every((e) => e)
+                      ? 'Deselect All'
+                      : 'Select All',
+                  style: const TextStyle(fontSize: 11),
+                ),
+                onPressed: () => setDialogState(() {
+                  final next = !stream.channelEnabled.every((e) => e);
+                  stream.channelEnabled = List<bool>.filled(
+                    stream.channelCount,
+                    next,
+                  );
+                }),
+              ),
+            ],
+          ),
+          const SizedBox(height: 6),
           const Text(
             'Rows map by order: Ch 1 is the first value emitted by the decoder, '
             'Ch 2 the second, and so on. “Capture” controls EDF inclusion; role '
             'controls display filtering.',
-            style: TextStyle(color: Colors.white54, fontSize: 11),
+            style: TextStyle(color: StudioColors.textMuted, fontSize: 11),
           ),
           const SizedBox(height: 8),
           ...List<Widget>.generate(stream.channelCount, (channel) {
@@ -635,7 +950,7 @@ class _SettingsScreenState extends State<SettingsScreen>
                     child: Text(
                       'Ch ${channel + 1}',
                       style: const TextStyle(
-                        color: Colors.white70,
+                        color: StudioColors.textSecondary,
                         fontWeight: FontWeight.bold,
                       ),
                     ),
@@ -651,9 +966,11 @@ class _SettingsScreenState extends State<SettingsScreen>
                   ),
                   Expanded(
                     child: TextFormField(
-                      key: ValueKey('${stream.id}:label:$channel'),
+                      key: ValueKey(
+                        '${stream.id}:label:$channel:${stream.channelLabels[channel]}',
+                      ),
                       initialValue: stream.channelLabels[channel],
-                      style: const TextStyle(color: Colors.white),
+                      style: const TextStyle(color: StudioColors.textPrimary),
                       decoration: const InputDecoration(
                         labelText: 'Channel label',
                         isDense: true,
@@ -663,13 +980,13 @@ class _SettingsScreenState extends State<SettingsScreen>
                     ),
                   ),
                   if (stream.signalType != SignalType.marker) ...[
-                    const SizedBox(width: 10),
+                    const SizedBox(width: 8),
                     DropdownButton<SignalType>(
                       value: selectable.contains(type)
                           ? type
                           : SignalType.auxiliary,
-                      dropdownColor: const Color(0xFF111827),
-                      style: const TextStyle(color: Colors.white),
+                      dropdownColor: StudioColors.surface,
+                      style: const TextStyle(color: StudioColors.textPrimary),
                       items: selectable
                           .map(
                             (value) => DropdownMenuItem(
@@ -686,6 +1003,21 @@ class _SettingsScreenState extends State<SettingsScreen>
                       },
                     ),
                   ],
+                  if (stream.channelCount > 1)
+                    IconButton(
+                      tooltip: 'Remove channel row',
+                      visualDensity: VisualDensity.compact,
+                      icon: const Icon(
+                        Icons.close,
+                        size: 16,
+                        color: StudioColors.textMuted,
+                      ),
+                      onPressed: () => setDialogState(() {
+                        stream.channelLabels.removeAt(channel);
+                        stream.channelTypes.removeAt(channel);
+                        stream.channelEnabled.removeAt(channel);
+                      }),
+                    ),
                 ],
               ),
             );
@@ -704,7 +1036,7 @@ class _SettingsScreenState extends State<SettingsScreen>
                 width: 130,
                 child: TextFormField(
                   initialValue: stream.unit,
-                  style: const TextStyle(color: Colors.white),
+                  style: const TextStyle(color: StudioColors.textPrimary),
                   decoration: const InputDecoration(labelText: 'Unit'),
                   onChanged: (value) => stream.unit = value,
                 ),
@@ -725,7 +1057,7 @@ class _SettingsScreenState extends State<SettingsScreen>
             const SizedBox(height: 10),
             TextFormField(
               initialValue: stream.lslName,
-              style: const TextStyle(color: Colors.white),
+              style: const TextStyle(color: StudioColors.textPrimary),
               decoration: const InputDecoration(
                 labelText: 'LSL stream name (optional)',
               ),
@@ -736,7 +1068,7 @@ class _SettingsScreenState extends State<SettingsScreen>
               initialValue: stream.lslType.isEmpty
                   ? stream.signalType.label
                   : stream.lslType,
-              style: const TextStyle(color: Colors.white),
+              style: const TextStyle(color: StudioColors.textPrimary),
               decoration: const InputDecoration(labelText: 'LSL stream type'),
               onChanged: (value) => stream.lslType = value,
             ),
@@ -744,6 +1076,82 @@ class _SettingsScreenState extends State<SettingsScreen>
         ],
       ),
     );
+  }
+
+  void _applyChannelTemplate(
+    SignalStreamProfile stream,
+    List<String> templateLabels,
+  ) {
+    stream.channelLabels = List<String>.from(templateLabels);
+    stream.channelTypes = SignalStreamProfile.normalizeChannelTypes(
+      stream.channelLabels,
+      null,
+    );
+    stream.channelEnabled = List<bool>.filled(
+      stream.channelLabels.length,
+      true,
+    );
+  }
+
+  Future<void> _bulkEditStreamChannels(
+    BuildContext context,
+    SignalStreamProfile stream,
+    StateSetter setParentDialogState,
+  ) async {
+    final ctrl = TextEditingController(text: stream.channelLabels.join(', '));
+    final result = await showDialog<String>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: StudioColors.card,
+        title: const Text(
+          'Bulk Edit Channels',
+          style: TextStyle(color: StudioColors.textPrimary),
+        ),
+        content: SizedBox(
+          width: 440,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                'Enter or paste channel names separated by commas, spaces, or newlines. Roles (EEG, EOG, EMG, ECG, PPG) are inferred automatically.',
+                style: TextStyle(color: StudioColors.textSecondary, fontSize: 12),
+              ),
+              const SizedBox(height: 10),
+              TextField(
+                controller: ctrl,
+                maxLines: 5,
+                style: const TextStyle(color: StudioColors.textPrimary),
+                decoration: const InputDecoration(
+                  hintText: 'Fp1, Fp2, F3, F4, C3, C4, O1, O2, Reog, Leog, EMG',
+                ),
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx, ctrl.text),
+            child: const Text('Apply Channels'),
+          ),
+        ],
+      ),
+    );
+    ctrl.dispose();
+    if (result == null) return;
+    final parsed = result
+        .split(RegExp(r'[\n,;]+'))
+        .map((s) => s.trim())
+        .where((s) => s.isNotEmpty)
+        .toList(growable: false);
+    if (parsed.isEmpty) return;
+    setParentDialogState(() {
+      _applyChannelTemplate(stream, parsed);
+    });
   }
 
   Widget _buildLslTab(
@@ -759,7 +1167,7 @@ class _SettingsScreenState extends State<SettingsScreen>
           const Text(
             'Display & Accessibility',
             style: TextStyle(
-              color: Colors.white,
+              color: StudioColors.textPrimary,
               fontSize: 16,
               fontWeight: FontWeight.bold,
             ),
@@ -774,7 +1182,7 @@ class _SettingsScreenState extends State<SettingsScreen>
           const Text(
             'BLE Target Device Configuration',
             style: TextStyle(
-              color: Colors.white,
+              color: StudioColors.textPrimary,
               fontSize: 16,
               fontWeight: FontWeight.bold,
             ),
@@ -782,7 +1190,7 @@ class _SettingsScreenState extends State<SettingsScreen>
           const SizedBox(height: 12),
           const Text(
             'Set the specific amplifier prefix or MAC address (e.g., AXXSPU00002, AXXSPU00003) to prevent cross-connecting when multiple amplifiers are nearby.',
-            style: TextStyle(color: Colors.white54, fontSize: 13),
+            style: TextStyle(color: StudioColors.textMuted, fontSize: 13),
           ),
           const SizedBox(height: 20),
           _buildTextField('xAMP / BLE Device Target Prefix', _xampPrefixCtrl, (
@@ -806,7 +1214,7 @@ class _SettingsScreenState extends State<SettingsScreen>
           const Text(
             'Lab Streaming Layer (LSL) Discovery',
             style: TextStyle(
-              color: Colors.white,
+              color: StudioColors.textPrimary,
               fontSize: 16,
               fontWeight: FontWeight.bold,
             ),
@@ -814,7 +1222,7 @@ class _SettingsScreenState extends State<SettingsScreen>
           const SizedBox(height: 12),
           const Text(
             'Configure target stream properties for WiFi EEG and fNIRS synchronization.',
-            style: TextStyle(color: Colors.white54, fontSize: 13),
+            style: TextStyle(color: StudioColors.textMuted, fontSize: 13),
           ),
           const SizedBox(height: 20),
           _buildTextField('EEG Stream Name (Optional)', _eegStreamNameCtrl, (
@@ -834,7 +1242,7 @@ class _SettingsScreenState extends State<SettingsScreen>
           const Text(
             'Auditory & Alert Verification',
             style: TextStyle(
-              color: Colors.white,
+              color: StudioColors.textPrimary,
               fontSize: 16,
               fontWeight: FontWeight.bold,
             ),
@@ -843,14 +1251,14 @@ class _SettingsScreenState extends State<SettingsScreen>
           Container(
             padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
-              color: const Color(0xFF1E293B),
+              color: StudioColors.card,
               borderRadius: BorderRadius.circular(12),
             ),
             child: Row(
               children: [
                 const Icon(
                   Icons.surround_sound,
-                  color: Color(0xFF3B82F6),
+                  color: StudioColors.blue,
                   size: 28,
                 ),
                 const SizedBox(width: 16),
@@ -861,20 +1269,20 @@ class _SettingsScreenState extends State<SettingsScreen>
                       Text(
                         'System Beep & Audio Stim',
                         style: TextStyle(
-                          color: Colors.white,
+                          color: StudioColors.textPrimary,
                           fontWeight: FontWeight.w600,
                         ),
                       ),
                       Text(
                         'Verify sound output for sleep and cognitive feedback',
-                        style: TextStyle(color: Colors.white54, fontSize: 12),
+                        style: TextStyle(color: StudioColors.textMuted, fontSize: 12),
                       ),
                     ],
                   ),
                 ),
                 ElevatedButton(
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFF3B82F6),
+                    backgroundColor: StudioColors.blue,
                     foregroundColor: Colors.white,
                   ),
                   onPressed: () => alertService.playBeep(),
@@ -887,7 +1295,7 @@ class _SettingsScreenState extends State<SettingsScreen>
           const Text(
             'Hardware Simulation & Bench Testing',
             style: TextStyle(
-              color: Colors.white,
+              color: StudioColors.textPrimary,
               fontSize: 16,
               fontWeight: FontWeight.bold,
             ),
@@ -896,7 +1304,7 @@ class _SettingsScreenState extends State<SettingsScreen>
           Container(
             padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
-              color: const Color(0xFF1E293B),
+              color: StudioColors.card,
               borderRadius: BorderRadius.circular(12),
             ),
             child: Row(
@@ -910,13 +1318,13 @@ class _SettingsScreenState extends State<SettingsScreen>
                       Text(
                         'Synthetic EEG Mode (16-ch EpiDome Sim)',
                         style: TextStyle(
-                          color: Colors.white,
+                          color: StudioColors.textPrimary,
                           fontWeight: FontWeight.w600,
                         ),
                       ),
                       Text(
                         'Simulates 16 frontal/parietal channels at 250 Hz for bench testing without hardware',
-                        style: TextStyle(color: Colors.white54, fontSize: 12),
+                        style: TextStyle(color: StudioColors.textMuted, fontSize: 12),
                       ),
                     ],
                   ),
@@ -955,7 +1363,7 @@ class _SettingsScreenState extends State<SettingsScreen>
           const Text(
             'Output Folder',
             style: TextStyle(
-              color: Colors.white,
+              color: StudioColors.textPrimary,
               fontSize: 16,
               fontWeight: FontWeight.bold,
             ),
@@ -964,14 +1372,14 @@ class _SettingsScreenState extends State<SettingsScreen>
           const Text(
             'Every EDF, marker file, task log, JSON result, and PDF report is '
             'copied here under Subject / Session folders.',
-            style: TextStyle(color: Colors.white54, fontSize: 13),
+            style: TextStyle(color: StudioColors.textMuted, fontSize: 13),
           ),
           const SizedBox(height: 12),
           Container(
             width: double.infinity,
             padding: const EdgeInsets.all(14),
             decoration: BoxDecoration(
-              color: const Color(0xFF1E293B),
+              color: StudioColors.card,
               borderRadius: BorderRadius.circular(10),
             ),
             child: FutureBuilder<String>(
@@ -979,7 +1387,7 @@ class _SettingsScreenState extends State<SettingsScreen>
               builder: (context, snapshot) => SelectableText(
                 snapshot.data ?? 'Resolving output folder…',
                 style: const TextStyle(
-                  color: Colors.white,
+                  color: StudioColors.textPrimary,
                   fontFamily: 'monospace',
                   fontSize: 12,
                 ),
@@ -1032,7 +1440,7 @@ class _SettingsScreenState extends State<SettingsScreen>
           const Text(
             'Paradigm Signal Recording',
             style: TextStyle(
-              color: Colors.white,
+              color: StudioColors.textPrimary,
               fontSize: 16,
               fontWeight: FontWeight.bold,
             ),
@@ -1042,7 +1450,7 @@ class _SettingsScreenState extends State<SettingsScreen>
             'Choose whether each paradigm records all connected enabled '
             'biopotential and LSL streams. When off, ANGEL and Adaptive WM '
             'run task-only and still save behavioral results.',
-            style: TextStyle(color: Colors.white54, fontSize: 13),
+            style: TextStyle(color: StudioColors.textMuted, fontSize: 13),
           ),
           const SizedBox(height: 8),
           _buildSwitchTile(
@@ -1078,7 +1486,7 @@ class _SettingsScreenState extends State<SettingsScreen>
           const Text(
             'Study Run Order',
             style: TextStyle(
-              color: Colors.white,
+              color: StudioColors.textPrimary,
               fontSize: 16,
               fontWeight: FontWeight.bold,
             ),
@@ -1086,7 +1494,7 @@ class _SettingsScreenState extends State<SettingsScreen>
           const SizedBox(height: 12),
           const Text(
             'Configure the exact module order for non-technical operators. Modules can appear more than once.',
-            style: TextStyle(color: Colors.white54, fontSize: 13),
+            style: TextStyle(color: StudioColors.textMuted, fontSize: 13),
           ),
           const SizedBox(height: 16),
           ReorderableListView.builder(
@@ -1104,7 +1512,7 @@ class _SettingsScreenState extends State<SettingsScreen>
               final module = settings.studySequence[index];
               return ListTile(
                 key: ValueKey('study-step-$index-${module.name}'),
-                tileColor: const Color(0xFF1E293B),
+                tileColor: StudioColors.card,
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(10),
                 ),
@@ -1115,14 +1523,14 @@ class _SettingsScreenState extends State<SettingsScreen>
                 ),
                 title: Text(
                   module.displayName,
-                  style: const TextStyle(color: Colors.white),
+                  style: const TextStyle(color: StudioColors.textPrimary),
                 ),
                 subtitle: Text(
                   module.fileTag,
-                  style: const TextStyle(color: Colors.white54),
+                  style: const TextStyle(color: StudioColors.textMuted),
                 ),
                 trailing: IconButton(
-                  icon: const Icon(Icons.delete_outline, color: Colors.white54),
+                  icon: const Icon(Icons.delete_outline, color: StudioColors.textMuted),
                   onPressed: () {
                     final next = List<ModuleType>.from(settings.studySequence)
                       ..removeAt(index);
@@ -1156,7 +1564,7 @@ class _SettingsScreenState extends State<SettingsScreen>
           const Text(
             'Backup / Export All Settings',
             style: TextStyle(
-              color: Colors.white,
+              color: StudioColors.textPrimary,
               fontSize: 16,
               fontWeight: FontWeight.bold,
             ),
@@ -1164,7 +1572,7 @@ class _SettingsScreenState extends State<SettingsScreen>
           const SizedBox(height: 6),
           const Text(
             'Save or load all configuration parameters (including channel configurations, hardware preferences, and individual cognitive battery settings) to sync settings across tablets.',
-            style: TextStyle(color: Colors.white54, fontSize: 12, height: 1.4),
+            style: TextStyle(color: StudioColors.textMuted, fontSize: 12, height: 1.4),
           ),
           const SizedBox(height: 16),
           Row(
@@ -1207,7 +1615,7 @@ class _SettingsScreenState extends State<SettingsScreen>
                   icon: const Icon(Icons.backup),
                   label: const Text('Export Backup'),
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFF1E293B),
+                    backgroundColor: StudioColors.card,
                     foregroundColor: Colors.white,
                     padding: const EdgeInsets.symmetric(vertical: 12),
                   ),
@@ -1260,7 +1668,7 @@ class _SettingsScreenState extends State<SettingsScreen>
                   label: const Text('Import Backup'),
                   style: ElevatedButton.styleFrom(
                     backgroundColor: lightTeal,
-                    foregroundColor: Colors.black,
+                    foregroundColor: Colors.white,
                     padding: const EdgeInsets.symmetric(vertical: 12),
                   ),
                 ),
@@ -1268,12 +1676,12 @@ class _SettingsScreenState extends State<SettingsScreen>
             ],
           ),
           const SizedBox(height: 24),
-          const Divider(color: Colors.white24),
+          const Divider(color: StudioColors.border),
           const SizedBox(height: 16),
           const Text(
             'Application & Updates',
             style: TextStyle(
-              color: Colors.white,
+              color: StudioColors.textPrimary,
               fontSize: 16,
               fontWeight: FontWeight.bold,
             ),
@@ -1281,15 +1689,15 @@ class _SettingsScreenState extends State<SettingsScreen>
           const SizedBox(height: 8),
           const Text(
             'Check for newer versions directly from GitHub Releases and upgrade the app in-place.',
-            style: TextStyle(color: Colors.white54, fontSize: 13),
+            style: TextStyle(color: StudioColors.textMuted, fontSize: 13),
           ),
           const SizedBox(height: 12),
           Container(
             padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
-              color: const Color(0xFF1E293B),
+              color: StudioColors.card,
               borderRadius: BorderRadius.circular(10),
-              border: Border.all(color: Colors.white10),
+              border: Border.all(color: StudioColors.border),
             ),
             child: Row(
               children: [
@@ -1302,7 +1710,7 @@ class _SettingsScreenState extends State<SettingsScreen>
                       const Text(
                         'CCS Mobile Studio',
                         style: TextStyle(
-                          color: Colors.white,
+                          color: StudioColors.textPrimary,
                           fontSize: 15,
                           fontWeight: FontWeight.bold,
                         ),
@@ -1317,7 +1725,7 @@ class _SettingsScreenState extends State<SettingsScreen>
                           return Text(
                             'Installed: $version',
                             style: const TextStyle(
-                              color: Colors.white70,
+                              color: StudioColors.textSecondary,
                               fontSize: 12,
                             ),
                           );
@@ -1332,7 +1740,7 @@ class _SettingsScreenState extends State<SettingsScreen>
                   label: const Text('Check Updates'),
                   style: FilledButton.styleFrom(
                     backgroundColor: lightTeal,
-                    foregroundColor: Colors.black,
+                    foregroundColor: Colors.white,
                   ),
                 ),
               ],
@@ -1347,9 +1755,9 @@ class _SettingsScreenState extends State<SettingsScreen>
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: const Color(0xFF1E293B),
+        color: StudioColors.card,
         borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: Colors.white10),
+        border: Border.all(color: StudioColors.border),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -1357,14 +1765,14 @@ class _SettingsScreenState extends State<SettingsScreen>
           const Text(
             'Manual marker profiles',
             style: TextStyle(
-              color: Colors.white,
+              color: StudioColors.textPrimary,
               fontSize: 14,
               fontWeight: FontWeight.bold,
             ),
           ),
           const Text(
             'The active bank appears in every live EEG viewer. Names remain editable after an event is sent.',
-            style: TextStyle(color: Colors.white54, fontSize: 12),
+            style: TextStyle(color: StudioColors.textMuted, fontSize: 12),
           ),
           const SizedBox(height: 10),
           Row(
@@ -1372,7 +1780,7 @@ class _SettingsScreenState extends State<SettingsScreen>
               Expanded(
                 child: DropdownButtonFormField<String>(
                   initialValue: settings.activeMarkerProfile,
-                  dropdownColor: const Color(0xFF1E293B),
+                  dropdownColor: StudioColors.card,
                   decoration: const InputDecoration(
                     labelText: 'Active profile',
                   ),
@@ -1426,7 +1834,7 @@ class _SettingsScreenState extends State<SettingsScreen>
       context: context,
       builder: (dialogContext) => StatefulBuilder(
         builder: (context, updateDialog) => AlertDialog(
-          backgroundColor: const Color(0xFF1E293B),
+          backgroundColor: StudioColors.card,
           title: const Text('Edit marker profile'),
           content: SizedBox(
             width: 520,
@@ -1531,9 +1939,9 @@ class _SettingsScreenState extends State<SettingsScreen>
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
       decoration: BoxDecoration(
-        color: const Color(0xFF1E293B),
+        color: StudioColors.card,
         borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: Colors.white10),
+        border: Border.all(color: StudioColors.border),
       ),
       child: Row(
         children: [
@@ -1543,12 +1951,12 @@ class _SettingsScreenState extends State<SettingsScreen>
               children: [
                 const Text(
                   'Disconnection detection speed',
-                  style: TextStyle(color: Colors.white, fontSize: 14),
+                  style: TextStyle(color: StudioColors.textPrimary, fontSize: 14),
                 ),
                 const SizedBox(height: 4),
                 const Text(
                   'How long without EEG samples before the app declares a disconnect, pauses the recording timer, and starts the beep + on-screen alert. Applies to NIDRA, ANGEL, Adaptive WM, and the EEG recorder.',
-                  style: TextStyle(color: Colors.white54, fontSize: 12),
+                  style: TextStyle(color: StudioColors.textMuted, fontSize: 12),
                 ),
               ],
             ),
@@ -1556,7 +1964,7 @@ class _SettingsScreenState extends State<SettingsScreen>
           const SizedBox(width: 12),
           DropdownButton<int>(
             value: current,
-            dropdownColor: const Color(0xFF1E293B),
+            dropdownColor: StudioColors.card,
             style: TextStyle(color: color, fontWeight: FontWeight.bold),
             underline: Container(
               height: 1,
@@ -1583,9 +1991,9 @@ class _SettingsScreenState extends State<SettingsScreen>
     return Container(
       padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
       decoration: BoxDecoration(
-        color: const Color(0xFF1E293B),
+        color: StudioColors.card,
         borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: Colors.white10),
+        border: Border.all(color: StudioColors.border),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -1595,7 +2003,7 @@ class _SettingsScreenState extends State<SettingsScreen>
               const Expanded(
                 child: Text(
                   'App text size',
-                  style: TextStyle(color: Colors.white, fontSize: 14),
+                  style: TextStyle(color: StudioColors.textPrimary, fontSize: 14),
                 ),
               ),
               Text(
@@ -1606,7 +2014,7 @@ class _SettingsScreenState extends State<SettingsScreen>
           ),
           const Text(
             'Applies throughout the app and is saved in the configuration.',
-            style: TextStyle(color: Colors.white54, fontSize: 12),
+            style: TextStyle(color: StudioColors.textMuted, fontSize: 12),
           ),
           Slider(
             value: settings.textScaleFactor,
@@ -1627,9 +2035,9 @@ class _SettingsScreenState extends State<SettingsScreen>
     return Container(
       padding: const EdgeInsets.fromLTRB(16, 12, 16, 14),
       decoration: BoxDecoration(
-        color: const Color(0xFF1E293B),
+        color: StudioColors.card,
         borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: Colors.white10),
+        border: Border.all(color: StudioColors.border),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -1637,14 +2045,14 @@ class _SettingsScreenState extends State<SettingsScreen>
           const Text(
             'EEG / ECG / PPG waveform display',
             style: TextStyle(
-              color: Colors.white,
+              color: StudioColors.textPrimary,
               fontSize: 14,
               fontWeight: FontWeight.bold,
             ),
           ),
           const Text(
             'Persistent viewer mode, epoch, autoscaling and fixed signal scales.',
-            style: TextStyle(color: Colors.white54, fontSize: 12),
+            style: TextStyle(color: StudioColors.textMuted, fontSize: 12),
           ),
           const SizedBox(height: 8),
           Wrap(
@@ -1655,10 +2063,10 @@ class _SettingsScreenState extends State<SettingsScreen>
               Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  const Text('Mode ', style: TextStyle(color: Colors.white70)),
+                  const Text('Mode ', style: TextStyle(color: StudioColors.textSecondary)),
                   DropdownButton<String>(
                     value: settings.waveformViewMode,
-                    dropdownColor: const Color(0xFF1E293B),
+                    dropdownColor: StudioColors.card,
                     items: const [
                       DropdownMenuItem(
                         value: 'rolling',
@@ -1677,10 +2085,10 @@ class _SettingsScreenState extends State<SettingsScreen>
               Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  const Text('Epoch ', style: TextStyle(color: Colors.white70)),
+                  const Text('Epoch ', style: TextStyle(color: StudioColors.textSecondary)),
                   DropdownButton<int>(
                     value: settings.waveformDurationSeconds,
-                    dropdownColor: const Color(0xFF1E293B),
+                    dropdownColor: StudioColors.card,
                     items: const [2, 4, 8, 10, 20, 30]
                         .map(
                           (seconds) => DropdownMenuItem(
@@ -1704,7 +2112,7 @@ class _SettingsScreenState extends State<SettingsScreen>
                 children: [
                   const Text(
                     'Autoscale',
-                    style: TextStyle(color: Colors.white70),
+                    style: TextStyle(color: StudioColors.textSecondary),
                   ),
                   Switch(
                     value: settings.waveformAutoscaleV2,
@@ -1719,7 +2127,7 @@ class _SettingsScreenState extends State<SettingsScreen>
           const SizedBox(height: 6),
           Text(
             'Trace thickness: ${settings.waveformStrokeWidth.toStringAsFixed(1)} px',
-            style: const TextStyle(color: Colors.white70),
+            style: const TextStyle(color: StudioColors.textSecondary),
           ),
           Slider(
             value: settings.waveformStrokeWidth,
@@ -1736,7 +2144,7 @@ class _SettingsScreenState extends State<SettingsScreen>
             children: [
               const Text(
                 'Trace colour',
-                style: TextStyle(color: Colors.white70),
+                style: TextStyle(color: StudioColors.textSecondary),
               ),
               for (final value in const [
                 0xFF14B8A6,
@@ -1810,7 +2218,7 @@ class _SettingsScreenState extends State<SettingsScreen>
       children: [
         Text(
           '$label: ±${value.round()} $unit',
-          style: TextStyle(color: enabled ? Colors.white : Colors.white54),
+          style: TextStyle(color: enabled ? StudioColors.textPrimary : StudioColors.textMuted),
         ),
         Slider(
           value: normalized,
@@ -1836,18 +2244,18 @@ class _SettingsScreenState extends State<SettingsScreen>
       margin: const EdgeInsets.only(bottom: 10),
       padding: const EdgeInsets.symmetric(horizontal: 12),
       decoration: BoxDecoration(
-        color: const Color(0xFF1E293B),
+        color: StudioColors.card,
         borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: Colors.white10),
+        border: Border.all(color: StudioColors.border),
       ),
       child: SwitchListTile(
         title: Text(
           title,
-          style: const TextStyle(color: Colors.white, fontSize: 14),
+          style: const TextStyle(color: StudioColors.textPrimary, fontSize: 14),
         ),
         subtitle: Text(
           subtitle,
-          style: const TextStyle(color: Colors.white54, fontSize: 12),
+          style: const TextStyle(color: StudioColors.textMuted, fontSize: 12),
         ),
         value: value,
         activeThumbColor: color,
@@ -1867,26 +2275,26 @@ class _SettingsScreenState extends State<SettingsScreen>
       children: [
         Text(
           label,
-          style: const TextStyle(color: Colors.white70, fontSize: 13),
+          style: const TextStyle(color: StudioColors.textSecondary, fontSize: 13),
         ),
         const SizedBox(height: 6),
         TextField(
           controller: controller,
-          style: const TextStyle(color: Colors.white),
+          style: const TextStyle(color: StudioColors.textPrimary),
           decoration: InputDecoration(
             filled: true,
-            fillColor: const Color(0xFF1E293B),
+            fillColor: StudioColors.card,
             border: OutlineInputBorder(
               borderRadius: BorderRadius.circular(10),
               borderSide: BorderSide.none,
             ),
             enabledBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(10),
-              borderSide: const BorderSide(color: Colors.white10),
+              borderSide: const BorderSide(color: StudioColors.border),
             ),
             focusedBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(10),
-              borderSide: const BorderSide(color: Color(0xFF14B8A6)),
+              borderSide: const BorderSide(color: StudioColors.teal),
             ),
           ),
           onChanged: onChanged,

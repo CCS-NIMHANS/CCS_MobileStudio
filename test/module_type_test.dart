@@ -12,6 +12,7 @@ void main() {
     expect(ModuleType.fromKey('adaptive_wm'), ModuleType.wm);
     expect(ModuleType.fromKey('heart_sync'), ModuleType.heartsync);
     expect(ModuleType.heartsync.fileTag, 'HEARTSYNC');
+    expect(ModuleType.hrd.displayName, 'Heart Rate Discrimination');
   });
 
   test('recovery keeps subject IDs containing underscores', () {

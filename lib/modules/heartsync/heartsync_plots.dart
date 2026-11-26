@@ -1,6 +1,7 @@
 import 'dart:math';
 
 import 'package:flutter/material.dart';
+import '../../core/theme/studio_theme.dart';
 
 import 'heartsync_engine.dart';
 import 'models.dart';
@@ -27,8 +28,8 @@ class HeartSyncLivePlot extends StatelessWidget {
     height: 230,
     margin: const EdgeInsets.symmetric(horizontal: 16),
     decoration: BoxDecoration(
-      color: const Color(0xFF0F172A),
-      border: Border.all(color: Colors.white12),
+      color: StudioColors.surface,
+      border: Border.all(color: StudioColors.border),
       borderRadius: BorderRadius.circular(10),
     ),
     child: CustomPaint(
@@ -87,14 +88,14 @@ class HeartSyncVerificationPlot extends StatelessWidget {
         const Text(
           'Average normalized cardiac cycle with actual post-hoc marker '
           'phase distributions. Vertical dashed lines show configured targets.',
-          style: TextStyle(color: Colors.white60, fontSize: 12),
+          style: TextStyle(color: StudioColors.textSecondary, fontSize: 12),
         ),
         const SizedBox(height: 10),
         Container(
           height: 300,
           decoration: BoxDecoration(
-            color: const Color(0xFF0F172A),
-            border: Border.all(color: Colors.white12),
+            color: StudioColors.surface,
+            border: Border.all(color: StudioColors.border),
             borderRadius: BorderRadius.circular(10),
           ),
           child: CustomPaint(
@@ -283,7 +284,7 @@ class _VerificationPainter extends CustomPainter {
     canvas.drawLine(
       Offset(left, waveBottom),
       Offset(size.width - right, waveBottom),
-      Paint()..color = Colors.white24,
+      Paint()..color = StudioColors.border,
     );
     for (final percent in [0, 25, 50, 75, 100]) {
       final x = left + plotWidth * percent / 100;
@@ -496,7 +497,7 @@ void _text(
   Canvas canvas,
   String text,
   Offset offset, {
-  Color color = Colors.white60,
+  Color color = StudioColors.textSecondary,
 }) {
   final painter = TextPainter(
     text: TextSpan(

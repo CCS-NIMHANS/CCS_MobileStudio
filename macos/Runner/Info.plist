@@ -28,6 +28,10 @@
 	<string>$(PRODUCT_COPYRIGHT)</string>
 	<key>NSBluetoothAlwaysUsageDescription</key>
 	<string>CCS Mobile Studio uses Bluetooth to connect to research biosignal devices.</string>
+	<key>NSCameraUsageDescription</key>
+	<string>CCS Mobile Studio records time-synchronized webcam video alongside EEG recordings.</string>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>CCS Mobile Studio records time-synchronized microphone audio alongside EEG recordings.</string>
 	<key>NSLocalNetworkUsageDescription</key>
 	<string>CCS Mobile Studio uses the local network to discover and receive Lab Streaming Layer biosignal streams.</string>
 	<key>NSMainNibFile</key>

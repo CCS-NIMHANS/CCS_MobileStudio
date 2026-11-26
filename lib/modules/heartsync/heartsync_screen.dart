@@ -1,5 +1,6 @@
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
+import '../../core/theme/studio_theme.dart';
 import 'package:provider/provider.dart';
 
 import '../../core/services/settings_service.dart';
@@ -202,10 +203,10 @@ class _HeartSyncScreenState extends State<HeartSyncScreen> {
     final s = context.watch<SettingsService>();
     if (!_loaded) return const SizedBox.shrink();
     return Scaffold(
-      backgroundColor: const Color(0xFF0B0F19),
+      backgroundColor: StudioColors.canvas,
       appBar: AppBar(
         title: const Text('HeartSync • Cardiac Oddball'),
-        backgroundColor: const Color(0xFF111827),
+        backgroundColor: StudioColors.surface,
       ),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(16),
@@ -237,7 +238,7 @@ class _HeartSyncScreenState extends State<HeartSyncScreen> {
               ),
               const Text(
                 'Effective total is capped at blocks × trials per block. Each stimulus type is split as evenly as possible across systole and diastole.',
-                style: TextStyle(color: Colors.white54, fontSize: 12),
+                style: TextStyle(color: StudioColors.textMuted, fontSize: 12),
               ),
             ]),
             _section('Pulse detection and timing', [
@@ -277,7 +278,7 @@ class _HeartSyncScreenState extends State<HeartSyncScreen> {
                 const Text(
                   'Accepted columns: timestamp/time plus PPG, ECG, or value. '
                   'Replay runs at the recorded timing through the same detector.',
-                  style: TextStyle(color: Colors.white54, fontSize: 12),
+                  style: TextStyle(color: StudioColors.textMuted, fontSize: 12),
                 ),
               SegmentedButton<HeartSyncPulseMode>(
                 segments: const [
@@ -331,7 +332,7 @@ class _HeartSyncScreenState extends State<HeartSyncScreen> {
               ),
               const Text(
                 'A fresh random decision is made at every detected beat; 75–90% is the recommended range.',
-                style: TextStyle(color: Colors.white54, fontSize: 12),
+                style: TextStyle(color: StudioColors.textMuted, fontSize: 12),
               ),
               _number(
                 'Systolic target offset (% IPI)',
@@ -474,7 +475,7 @@ class _HeartSyncScreenState extends State<HeartSyncScreen> {
     margin: const EdgeInsets.only(bottom: 14),
     padding: const EdgeInsets.all(16),
     decoration: BoxDecoration(
-      color: const Color(0xFF1E293B),
+      color: StudioColors.card,
       borderRadius: BorderRadius.circular(14),
     ),
     child: Column(

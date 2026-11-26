@@ -9,6 +9,7 @@ import 'package:package_info_plus/package_info_plus.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:provider/provider.dart';
+import '../theme/studio_theme.dart';
 import 'session_manager.dart';
 
 enum UpdatePlatform { android, macos, windows, linux, unsupported }
@@ -544,12 +545,12 @@ class _AppUpdateDialogState extends State<AppUpdateDialog> {
     final recording = context.watch<SessionManager>().isRecording;
     final info = widget.info;
     return AlertDialog(
-      backgroundColor: const Color(0xFF1E293B),
+      backgroundColor: StudioColors.card,
       title: Row(
         children: [
           Icon(
             info.hasUpdate ? Icons.system_update_alt : Icons.verified_outlined,
-            color: info.hasUpdate ? Colors.tealAccent : Colors.greenAccent,
+            color: info.hasUpdate ? StudioColors.teal : StudioColors.emerald,
           ),
           const SizedBox(width: 10),
           Expanded(
@@ -557,7 +558,7 @@ class _AppUpdateDialogState extends State<AppUpdateDialog> {
               info.hasUpdate
                   ? 'Update available'
                   : 'CCS Mobile Studio is current',
-              style: const TextStyle(color: Colors.white),
+              style: const TextStyle(color: StudioColors.textPrimary),
             ),
           ),
         ],
@@ -570,13 +571,13 @@ class _AppUpdateDialogState extends State<AppUpdateDialog> {
           children: [
             Text(
               'Installed: ${info.currentVersion}   •   Latest: ${info.latestVersion}',
-              style: const TextStyle(color: Colors.white70),
+              style: const TextStyle(color: StudioColors.textSecondary),
             ),
             const SizedBox(height: 14),
             const Text(
               'What’s new',
               style: TextStyle(
-                color: Colors.white,
+                color: StudioColors.textPrimary,
                 fontWeight: FontWeight.bold,
               ),
             ),
@@ -586,7 +587,7 @@ class _AppUpdateDialogState extends State<AppUpdateDialog> {
               child: SingleChildScrollView(
                 child: SelectableText(
                   info.releaseNotes,
-                  style: const TextStyle(color: Colors.white70),
+                  style: const TextStyle(color: StudioColors.textSecondary),
                 ),
               ),
             ),
@@ -595,7 +596,7 @@ class _AppUpdateDialogState extends State<AppUpdateDialog> {
                 padding: EdgeInsets.only(top: 12),
                 child: Text(
                   'Installation paused while a recording is active.',
-                  style: TextStyle(color: Colors.amber),
+                  style: TextStyle(color: StudioColors.amber),
                 ),
               ),
             if (downloading || status.isNotEmpty) ...[
@@ -603,7 +604,7 @@ class _AppUpdateDialogState extends State<AppUpdateDialog> {
               if (downloading)
                 LinearProgressIndicator(value: progress > 0 ? progress : null),
               const SizedBox(height: 8),
-              Text(status, style: const TextStyle(color: Colors.white70)),
+              Text(status, style: const TextStyle(color: StudioColors.textSecondary)),
             ],
           ],
         ),

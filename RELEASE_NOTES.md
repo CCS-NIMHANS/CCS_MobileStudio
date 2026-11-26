@@ -1,5 +1,19 @@
 # Release Notes — CCS Mobile Studio
 
+## Version 1.0.12 (Build 13) — 26 November 2026
+
+### Highlights
+- **CCS_SleepStudio Clinical Light UI & Responsive Layout**: Redesigned across mobile, tablet, and desktop/laptop with the `#F3F5F8` / `#F8F9FB` / pure white `#FFFFFF` clinical instrument aesthetic, `#3B6EA5` steel-blue accents, crisp ink traces, and responsive navigation.
+- **BLE Cold-Start Reliability & Multi-Profile Device Config**: Fixed first-time BLE scan stalls on macOS, added Stop/Scan state handling, consolidated BLE/LSL/Simulate connection dialog, and added multi-profile support per amplifier (duplicate, import/export, project tags, quick channel templates).
+- **Rust-Accelerated DSP & 60 FPS Rendering**: Ported Welch PSD (`ccs_welch_psd`) and batch signal-quality/passive-impedance computation (`ccs_signal_quality_batch`) to Rust, using zero-shift `Float64RingBuffer`, min-max pixel-column decimation, and decoupled repaint tickers.
+- **Realtime Rust ASR & OSCAR-Style Cleaning**: Added online CleanLine (50/60 Hz + harmonic), sliding-window ASR subspace reconstruction, gated frontal EOG blink regression, and EMG/slew pop suppression (`ccs_cleaner_*`) with live `% Cleaned` indicator (raw EDF+ remains untouched).
+- **EDF+ (`EDF+C`) Annotations & Clean Exports**: Upgraded the native Rust EDF writer to embed `EDF Annotations` TAL events directly in `.edf` files, fixed Page-mode marker coordinates on the live sweep cursor, and eliminated duplicate `recordings/`/`data/` subfolders inside user output directories.
+- **Standardized ERP CORE Paradigms & Real-Time ERPs**: Added all 6 ERP CORE paradigms (**N170**, **MMN**, **N2pc**, **N400**, **P3b**, **ERN/LRP Flankers**) with VSync-locked visual markers, zero-jitter auditory timing, real-time ERP + difference-wave plots, and renamed HRD to **Heart Rate Discrimination**.
+- **Time-Synched Webcam Video & Audio**: Added hardware-timestamped AVFoundation `.mp4` capture (`AV_SYNC_START`/`STOP` EDF+ annotations + `_av_sync.json` sample-offset & drift telemetry).
+- **Dichotic Neural Speech Tracking**: New module presenting simultaneous Left/Right stereo speech streams and running Rust-accelerated multi-feature backward TRF decoding across all or selected EEG channels (effective even with few electrodes).
+
+---
+
 ## Version 1.0.11 (Build 12) — 12 October 2026
 
 ### Highlights

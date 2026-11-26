@@ -11,6 +11,7 @@ import '../models/signal_stream_sample.dart';
 import '../models/module_type.dart';
 import '../models/stream_marker.dart';
 import 'settings_service.dart';
+import 'av_sync_service.dart';
 import 'multi_stream_lsl_service.dart';
 import 'multi_device_acquisition_service.dart';
 import 'file_naming_service.dart';
@@ -53,6 +54,7 @@ class SessionManager extends ChangeNotifier {
   SettingsService? _settings;
   MultiStreamLslService? _multiLsl;
   MultiDeviceAcquisitionService? _multiDevice;
+  AvSyncService? _avSync;
   StreamSubscription<EegSample>? _sampleSub;
   StreamSubscription<SignalStreamSample>? _streamSampleSub;
   StreamSubscription<SignalStreamSample>? _lslSampleSub;
@@ -105,6 +107,16 @@ class SessionManager extends ChangeNotifier {
     final start = _sessionStart;
     if (start == null || _subject.isEmpty) return null;
     return FileNamingService.stem(_subject, _module, start);
+  }
+
+  void attachAvSync(AvSyncService avSync) {
+    _avSync = avSync;
+    avSync.attachSessionCallbacks(
+      readEegSamplesWritten: () => _recorder?.samplesWritten ?? 0,
+      readEegSampleRate: () => _recorder?.sampleRate ?? (_sessionSampleRate ?? 250),
+      emitMarker: (label, code, {occurredAt}) =>
+          recordEvent(label, code, occurredAt: occurredAt),
+    );
   }
 
   // ── DI update (called by ProxyProvider) ────────────────────────────────────
@@ -295,6 +307,9 @@ class SessionManager extends ChangeNotifier {
   /// Stop the session entirely.
   Future<void> stopSession() async {
     if (!_isRecording) return;
+    if (_avSync?.isRecording == true) {
+      await _avSync!.stopSessionRecording(edfPath: _recorder?.path);
+    }
     _isRecording = false;
     _wasRecordingBeforeDisconnect = false;
     _timerPaused = false;
@@ -331,9 +346,9 @@ class SessionManager extends ChangeNotifier {
     StreamMarker? marker,
     DateTime? occurredAt,
   }) {
-    _recorder?.setMarker(code);
+    _recorder?.setMarker(code, label: label);
     for (final recorder in _streamRecorders.values) {
-      recorder.setMarker(code);
+      recorder.setMarker(code, label: label);
     }
     final recorded =
         marker ??
@@ -506,6 +521,16 @@ class SessionManager extends ChangeNotifier {
     await _startConfiguredStreamRecorders(part: 1);
     await _startLslStreamRecorders(part: 1);
     await _startDirectDeviceRecorders(part: 1);
+    if (_avSync?.armed == true) {
+      unawaited(
+        _avSync!.startSessionRecording(
+          subject: _subject,
+          sessionStem: FileNamingService.stem(_subject, _module, start),
+          eegStartUtcMs: start.millisecondsSinceEpoch,
+          eegSampleRate: _sessionSampleRate ?? 250,
+        ),
+      );
+    }
     debugPrint('[SessionManager] Started segment 1 → $path');
     notifyListeners();
   }

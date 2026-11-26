@@ -36,6 +36,85 @@ BiosignalType biosignalTypeForSignalType(SignalType type) => switch (type) {
   SignalType.auxiliary => BiosignalType.other,
 };
 
+/// Optional per-channel filter override (HPF, LPF, Notch, Polarity inversion).
+class ChannelFilterConfig {
+  const ChannelFilterConfig({
+    this.highPassEnabled = true,
+    this.highPassHz = 0.3,
+    this.lowPassEnabled = true,
+    this.lowPassHz = 35.0,
+    this.notchEnabled = true,
+    this.notchHz = 50.0,
+    this.invertPolarity = false,
+  });
+
+  final bool highPassEnabled;
+  final double highPassHz;
+  final bool lowPassEnabled;
+  final double lowPassHz;
+  final bool notchEnabled;
+  final double notchHz;
+  final bool invertPolarity;
+
+  String get cacheKey =>
+      '$highPassEnabled:${highPassHz.toStringAsFixed(3)}:'
+      '$lowPassEnabled:${lowPassHz.toStringAsFixed(3)}:'
+      '$notchEnabled:${notchHz.toStringAsFixed(2)}:$invertPolarity';
+
+  ChannelFilterConfig copyWith({
+    bool? highPassEnabled,
+    double? highPassHz,
+    bool? lowPassEnabled,
+    double? lowPassHz,
+    bool? notchEnabled,
+    double? notchHz,
+    bool? invertPolarity,
+  }) {
+    return ChannelFilterConfig(
+      highPassEnabled: highPassEnabled ?? this.highPassEnabled,
+      highPassHz: highPassHz ?? this.highPassHz,
+      lowPassEnabled: lowPassEnabled ?? this.lowPassEnabled,
+      lowPassHz: lowPassHz ?? this.lowPassHz,
+      notchEnabled: notchEnabled ?? this.notchEnabled,
+      notchHz: notchHz ?? this.notchHz,
+      invertPolarity: invertPolarity ?? this.invertPolarity,
+    );
+  }
+
+  Map<String, dynamic> toJson() => {
+    'highPassEnabled': highPassEnabled,
+    'highPassHz': highPassHz,
+    'lowPassEnabled': lowPassEnabled,
+    'lowPassHz': lowPassHz,
+    'notchEnabled': notchEnabled,
+    'notchHz': notchHz,
+    'invertPolarity': invertPolarity,
+  };
+
+  factory ChannelFilterConfig.fromJson(Map<String, dynamic> json) {
+    final hp = ((json['highPassHz'] as num?)?.toDouble() ?? 0.3).clamp(
+      0.01,
+      500.0,
+    );
+    final lp = ((json['lowPassHz'] as num?)?.toDouble() ?? 35.0).clamp(
+      hp + 0.05,
+      5000.0,
+    );
+    return ChannelFilterConfig(
+      highPassEnabled: json['highPassEnabled'] as bool? ?? true,
+      highPassHz: hp,
+      lowPassEnabled: json['lowPassEnabled'] as bool? ?? true,
+      lowPassHz: lp,
+      notchEnabled: json['notchEnabled'] as bool? ?? true,
+      notchHz: ((json['notchHz'] as num?)?.toDouble() ?? 50.0).clamp(
+        1.0,
+        500.0,
+      ),
+      invertPolarity: json['invertPolarity'] as bool? ?? false,
+    );
+  }
+}
+
 class DisplayFilterSettings {
   const DisplayFilterSettings({
     this.eegHighPassHz = 0.3,
@@ -47,6 +126,7 @@ class DisplayFilterSettings {
     this.ecgHighPassHz = 0.5,
     this.ecgLowPassHz = 40.0,
     this.notchFrequencyHz = 50.0,
+    this.channelOverrides = const {},
   });
 
   final double eegHighPassHz;
@@ -58,6 +138,7 @@ class DisplayFilterSettings {
   final double ecgHighPassHz;
   final double ecgLowPassHz;
   final double notchFrequencyHz;
+  final Map<String, ChannelFilterConfig> channelOverrides;
 
   (double, double)? bandFor(BiosignalType type) => switch (type) {
     BiosignalType.eeg => (eegHighPassHz, eegLowPassHz),
@@ -66,21 +147,72 @@ class DisplayFilterSettings {
     BiosignalType.ecg => (ecgHighPassHz, ecgLowPassHz),
     BiosignalType.ppg || BiosignalType.other => null,
   };
+
+  ChannelFilterConfig effectiveFor(String label, BiosignalType type) {
+    final override = channelOverrides[label];
+    if (override != null) return override;
+    final band = bandFor(type);
+    if (band == null) {
+      return ChannelFilterConfig(
+        highPassEnabled: false,
+        lowPassEnabled: false,
+        notchEnabled: false,
+        notchHz: notchFrequencyHz,
+      );
+    }
+    return ChannelFilterConfig(
+      highPassEnabled: true,
+      highPassHz: band.$1,
+      lowPassEnabled: true,
+      lowPassHz: band.$2,
+      notchEnabled: true,
+      notchHz: notchFrequencyHz,
+    );
+  }
 }
 
-/// Applies channel-reference derivations without changing the recorded signal.
+/// Applies channel-reference derivations (single-channel or Common Average
+/// Reference `__CAR__`) without changing the recorded signal.
 class DisplayMontage {
+  static const String carReferenceKey = '__CAR__';
+
   static List<double> apply(
     List<double> channels,
     List<String> labels,
-    Map<String, String> references,
-  ) {
+    Map<String, String> references, {
+    List<SignalType> channelTypes = const [],
+  }) {
     final labelIndices = <String, int>{
       for (var i = 0; i < labels.length; i++) labels[i]: i,
     };
+    double? carMean;
+    if (references.values.contains(carReferenceKey) && channels.isNotEmpty) {
+      var sum = 0.0;
+      var count = 0;
+      for (var i = 0; i < channels.length; i++) {
+        final type = i < channelTypes.length
+            ? biosignalTypeForSignalType(channelTypes[i])
+            : (i < labels.length
+                  ? biosignalTypeForLabel(labels[i])
+                  : BiosignalType.eeg);
+        if (type == BiosignalType.eeg) {
+          sum += channels[i];
+          count++;
+        }
+      }
+      if (count > 0) {
+        carMean = sum / count;
+      } else {
+        carMean = channels.reduce((a, b) => a + b) / channels.length;
+      }
+    }
+
     return List<double>.generate(channels.length, (index) {
       if (index >= labels.length) return channels[index];
       final referenceLabel = references[labels[index]];
+      if (referenceLabel == carReferenceKey && carMean != null) {
+        return channels[index] - carMean;
+      }
       final referenceIndex = referenceLabel == null
           ? null
           : labelIndices[referenceLabel];
@@ -99,6 +231,7 @@ class DisplayMontage {
   ) => List<String>.generate(channelLabels.length, (index) {
     final label = channelLabels[index];
     final reference = references[label];
+    if (reference == carReferenceKey) return '$label-CAR';
     return reference == null || reference == label
         ? label
         : '$label-$reference';
@@ -203,20 +336,32 @@ enum _BiquadKind { lowPass, highPass, notch }
 class _ChannelFilterCascade {
   _ChannelFilterCascade({
     required double sampleRate,
+    required this.highPassActive,
     required double highPassHz,
+    required this.lowPassActive,
     required double lowPassHz,
+    required this.notchActive,
     required double notchFrequencyHz,
-  }) : highPass = BiquadFilter.highPass(sampleRate, highPassHz),
-       lowPass = BiquadFilter.lowPass(
-         sampleRate,
-         math.min(lowPassHz, sampleRate * 0.45),
-       ),
-       notch = notchFrequencyHz < sampleRate * 0.48
+    required this.invertPolarity,
+  }) : highPass = highPassActive
+           ? BiquadFilter.highPass(sampleRate, highPassHz)
+           : null,
+       lowPass = lowPassActive
+           ? BiquadFilter.lowPass(
+               sampleRate,
+               math.min(lowPassHz, sampleRate * 0.45),
+             )
+           : null,
+       notch = notchActive && notchFrequencyHz < sampleRate * 0.48
            ? BiquadFilter.notch(sampleRate, notchFrequencyHz)
            : null;
 
-  final BiquadFilter highPass;
-  final BiquadFilter lowPass;
+  final bool highPassActive;
+  final bool lowPassActive;
+  final bool notchActive;
+  final bool invertPolarity;
+  final BiquadFilter? highPass;
+  final BiquadFilter? lowPass;
   final BiquadFilter? notch;
   bool _initialized = false;
 
@@ -225,31 +370,32 @@ class _ChannelFilterCascade {
     required bool useNotch,
     required bool useBand,
   }) {
+    final applyNotch = useNotch && notch != null;
+    final applyHp = useBand && highPass != null;
+    final applyLp = useBand && lowPass != null;
+
     if (!_initialized) {
-      // Prime every active stage from the actual first sample. A zero-state
-      // high-pass/notch interprets the electrode DC offset as a large signal
-      // edge and can take several seconds to settle.
-      if (useNotch) notch?.prime(value);
-      if (useBand) {
-        highPass.prime(value);
-        lowPass.prime(0);
+      if (applyNotch) notch!.prime(value);
+      if (applyHp) {
+        highPass!.prime(value);
+        if (applyLp) lowPass!.prime(0);
+      } else if (applyLp) {
+        lowPass!.prime(value);
       }
       _initialized = true;
     }
     var output = value;
-    if (useNotch) output = notch?.process(output) ?? output;
-    if (useBand) {
-      output = highPass.process(output);
-      output = lowPass.process(output);
-    }
-    return output;
+    if (applyNotch) output = notch!.process(output);
+    if (applyHp) output = highPass!.process(output);
+    if (applyLp) output = lowPass!.process(output);
+    return invertPolarity ? -output : output;
   }
 }
 
 /// Per-channel, sample-rate-aware display filtering. Raw recording is untouched.
 class DisplayFilter {
   final List<_ChannelFilterCascade?> _cascades = [];
-  final List<String?> _configurationKeys = [];
+  final List<int> _configurationHashes = [];
 
   List<double> process(
     List<double> channels, {
@@ -262,24 +408,41 @@ class DisplayFilter {
   }) {
     while (_cascades.length < channels.length) {
       _cascades.add(null);
-      _configurationKeys.add(null);
+      _configurationHashes.add(0);
     }
     return List<double>.generate(channels.length, (index) {
       final label = index < labels.length ? labels[index] : 'EEG';
       final type = index < channelTypes.length
           ? biosignalTypeForSignalType(channelTypes[index])
           : biosignalTypeForLabel(label);
-      final band = settings.bandFor(type);
-      if (band == null) return channels[index];
-      final key =
-          '${sampleRate.toStringAsFixed(4)}:$type:${band.$1}:${band.$2}:${settings.notchFrequencyHz}';
-      if (_configurationKeys[index] != key) {
-        _configurationKeys[index] = key;
+
+      final override = settings.channelOverrides[label];
+      if (override == null && settings.bandFor(type) == null) {
+        return channels[index];
+      }
+      final cfg = settings.effectiveFor(label, type);
+      final hash = Object.hash(
+        sampleRate,
+        type,
+        cfg.highPassEnabled,
+        cfg.highPassHz,
+        cfg.lowPassEnabled,
+        cfg.lowPassHz,
+        cfg.notchEnabled,
+        cfg.notchHz,
+        cfg.invertPolarity,
+      );
+      if (_configurationHashes[index] != hash || _cascades[index] == null) {
+        _configurationHashes[index] = hash;
         _cascades[index] = _ChannelFilterCascade(
           sampleRate: sampleRate,
-          highPassHz: band.$1,
-          lowPassHz: band.$2,
-          notchFrequencyHz: settings.notchFrequencyHz,
+          highPassActive: cfg.highPassEnabled,
+          highPassHz: cfg.highPassHz,
+          lowPassActive: cfg.lowPassEnabled,
+          lowPassHz: cfg.lowPassHz,
+          notchActive: cfg.notchEnabled,
+          notchFrequencyHz: cfg.notchHz,
+          invertPolarity: cfg.invertPolarity,
         );
       }
       return _cascades[index]!.process(
@@ -293,7 +456,7 @@ class DisplayFilter {
   void reset() {
     for (var i = 0; i < _cascades.length; i++) {
       _cascades[i] = null;
-      _configurationKeys[i] = null;
+      _configurationHashes[i] = 0;
     }
   }
 }

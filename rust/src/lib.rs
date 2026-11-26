@@ -1,5 +1,17 @@
+mod cleaning;
+mod dsp;
 mod hrd;
 mod hrd_ecg;
+mod speech_tracking;
+pub use cleaning::{
+    ccs_cleaner_calibrate_push, ccs_cleaner_calibration_progress,
+    ccs_cleaner_create, ccs_cleaner_free, ccs_cleaner_process_sample,
+    ccs_cleaner_reset, ccs_cleaner_set_config,
+};
+pub use dsp::{ccs_signal_quality_batch, ccs_welch_psd};
+pub use speech_tracking::{
+    ccs_speech_decode_block, ccs_speech_extract_envelope, SpeechDecodeResult,
+};
 use std::ffi::{CStr, CString};
 use std::fs::File;
 use std::io::{Seek, SeekFrom, Write};
@@ -77,14 +89,19 @@ pub struct SleepScorer {
     model: TractModel,
 }
 
+const EDF_ANN_SAMPLES_PER_RECORD: usize = 120;
+
 pub struct EdfWriter {
     file: File,
-    channel_count: usize,
+    signal_channel_count: usize,
     samples_per_record: usize,
+    record_duration: f64,
     record_samples: Vec<Vec<i16>>,
     records: u64,
+    total_samples_written: u64,
     phys_min: Vec<f64>,
     phys_max: Vec<f64>,
+    pending_annotations: Vec<(f64, f64, String)>,
 }
 
 #[no_mangle]
@@ -228,51 +245,18 @@ pub unsafe extern "C" fn tn_edf_open(
     channel_count: usize,
     sample_rate: usize,
 ) -> *mut EdfWriter {
-    if path.is_null() || channel_count == 0 || sample_rate == 0 {
-        return ptr::null_mut();
-    }
-    let path = match CStr::from_ptr(path).to_str() {
-        Ok(path) => path,
-        Err(_) => return ptr::null_mut(),
-    };
-    let subject = if subject.is_null() {
-        "unknown"
-    } else {
-        CStr::from_ptr(subject).to_str().unwrap_or("unknown")
-    };
-
-    let mut file = match File::create(path) {
-        Ok(file) => file,
-        Err(_) => return ptr::null_mut(),
-    };
-    let phys_min = vec![-250000.0; channel_count];
-    let phys_max = vec![250000.0; channel_count];
-    let header = edf_header(
+    edf_open_with_labels_and_ranges_impl(
+        path,
         subject,
+        ptr::null(),
+        ptr::null(),
+        ptr::null(),
+        ptr::null(),
+        ptr::null(),
+        ptr::null(),
         channel_count,
-        sample_rate,
-        1.0,
-        -1,
-        None,
-        None,
-        None,
-        None,
-        Some(&phys_min),
-        Some(&phys_max),
-    );
-    if file.write_all(&header).is_err() {
-        return ptr::null_mut();
-    }
-
-    Box::into_raw(Box::new(EdfWriter {
-        file,
-        channel_count,
-        samples_per_record: sample_rate,
-        record_samples: vec![Vec::with_capacity(sample_rate); channel_count],
-        records: 0,
-        phys_min,
-        phys_max,
-    }))
+        sample_rate as f64,
+    )
 }
 
 #[no_mangle]
@@ -286,7 +270,7 @@ pub unsafe extern "C" fn tn_edf_push_sample(
     }
     let writer = &mut *writer;
     let values = std::slice::from_raw_parts(samples, count);
-    for channel in 0..writer.channel_count {
+    for channel in 0..writer.signal_channel_count {
         let value = values.get(channel).copied().unwrap_or(0.0);
         let phys_min = writer.phys_min.get(channel).copied().unwrap_or(-250000.0);
         let phys_max = writer.phys_max.get(channel).copied().unwrap_or(250000.0);
@@ -295,6 +279,7 @@ pub unsafe extern "C" fn tn_edf_push_sample(
         let scaled = ((clipped - phys_min) * 65535.0 / span - 32768.0).round();
         writer.record_samples[channel].push(scaled.clamp(-32768.0, 32767.0) as i16);
     }
+    writer.total_samples_written += 1;
     if writer.record_samples[0].len() >= writer.samples_per_record {
         write_edf_record(writer).is_ok()
     } else {
@@ -303,13 +288,49 @@ pub unsafe extern "C" fn tn_edf_push_sample(
 }
 
 #[no_mangle]
+pub unsafe extern "C" fn tn_edf_push_annotation(
+    writer: *mut EdfWriter,
+    onset_sec: f64,
+    duration_sec: f64,
+    label: *const c_char,
+) -> i32 {
+    if writer.is_null() || label.is_null() || !onset_sec.is_finite() {
+        return 0;
+    }
+    let raw = CStr::from_ptr(label).to_string_lossy();
+    let cleaned: String = raw
+        .chars()
+        .map(|c| match c {
+            '\x14' | '\x15' | '\x00' | '\r' | '\n' => ' ',
+            _ => c,
+        })
+        .collect::<String>()
+        .trim()
+        .to_string();
+    if cleaned.is_empty() {
+        return 0;
+    }
+    let truncated: String = cleaned.chars().take(180).collect();
+    let dur = if duration_sec.is_finite() && duration_sec > 0.0 {
+        duration_sec
+    } else {
+        0.0
+    };
+    let writer = &mut *writer;
+    writer
+        .pending_annotations
+        .push((onset_sec.max(0.0), dur, truncated));
+    1
+}
+
+#[no_mangle]
 pub unsafe extern "C" fn tn_edf_close(writer: *mut EdfWriter) -> bool {
     if writer.is_null() {
         return false;
     }
     let mut writer = Box::from_raw(writer);
-    if !writer.record_samples[0].is_empty() {
-        for channel in 0..writer.channel_count {
+    if !writer.record_samples[0].is_empty() || !writer.pending_annotations.is_empty() {
+        for channel in 0..writer.signal_channel_count {
             let last = writer.record_samples[channel].last().copied().unwrap_or(0);
             while writer.record_samples[channel].len() < writer.samples_per_record {
                 writer.record_samples[channel].push(last);
@@ -786,13 +807,59 @@ fn stage_confidence(
     (raw * (1.0 - artifact).max(0.2)).clamp(0.05, 0.98)
 }
 
+fn build_edf_tal_record(
+    record_start: f64,
+    record_end: f64,
+    pending: &mut Vec<(f64, f64, String)>,
+    max_bytes: usize,
+) -> Vec<u8> {
+    let mut buf = Vec::with_capacity(max_bytes);
+    let timekeeper = format!("+{:.3}\x14\x14\x00", record_start);
+    buf.extend_from_slice(timekeeper.as_bytes());
+
+    let mut remaining = Vec::new();
+    let mut stop_draining = false;
+    for item in pending.drain(..) {
+        if stop_draining || item.0 > record_end + 1e-3 {
+            remaining.push(item);
+            continue;
+        }
+        let (onset, dur, ref label) = item;
+        let tal = if dur > 0.0 {
+            format!("+{:.3}\x15{:.3}\x14{}\x14\x00", onset, dur, label)
+        } else {
+            format!("+{:.3}\x14{}\x14\x00", onset, label)
+        };
+        let tal_bytes = tal.as_bytes();
+        if buf.len() + tal_bytes.len() <= max_bytes {
+            buf.extend_from_slice(tal_bytes);
+        } else {
+            stop_draining = true;
+            remaining.push(item);
+        }
+    }
+    *pending = remaining;
+    buf.resize(max_bytes, 0);
+    buf
+}
+
 fn write_edf_record(writer: &mut EdfWriter) -> std::io::Result<()> {
-    for channel in 0..writer.channel_count {
+    for channel in 0..writer.signal_channel_count {
         for &sample in &writer.record_samples[channel] {
             writer.file.write_all(&sample.to_le_bytes())?;
         }
         writer.record_samples[channel].clear();
     }
+    let record_start = writer.records as f64 * writer.record_duration;
+    let record_end = (writer.records + 1) as f64 * writer.record_duration;
+    let tal_bytes = build_edf_tal_record(
+        record_start,
+        record_end,
+        &mut writer.pending_annotations,
+        EDF_ANN_SAMPLES_PER_RECORD * 2,
+    );
+    writer.file.write_all(&tal_bytes)?;
+
     writer.records += 1;
     let after_record = writer.file.stream_position()?;
     let count = ascii_pad(&writer.records.to_string(), 8);
@@ -816,6 +883,38 @@ fn edf_header(
     phys_min: Option<&[f64]>,
     phys_max: Option<&[f64]>,
 ) -> Vec<u8> {
+    let counts = vec![sample_rate; channel_count];
+    edf_header_ext(
+        subject,
+        channel_count,
+        &counts,
+        record_duration,
+        records,
+        names,
+        phys_dims,
+        prefilters,
+        transducers,
+        phys_min,
+        phys_max,
+        "EDF+C",
+    )
+}
+
+#[allow(clippy::too_many_arguments)]
+fn edf_header_ext(
+    subject: &str,
+    channel_count: usize,
+    samples_per_channel: &[usize],
+    record_duration: f64,
+    records: i64,
+    names: Option<Vec<String>>,
+    phys_dims: Option<Vec<String>>,
+    prefilters: Option<Vec<String>>,
+    transducers: Option<Vec<String>>,
+    phys_min: Option<&[f64]>,
+    phys_max: Option<&[f64]>,
+    reserved: &str,
+) -> Vec<u8> {
     let header_bytes = 256 + channel_count * 256;
     let mut header = Vec::with_capacity(header_bytes);
     let now = chrono::Local::now();
@@ -828,7 +927,7 @@ fn edf_header(
     header.extend(ascii_pad(&date_str, 8));
     header.extend(ascii_pad(&time_str, 8));
     header.extend(ascii_pad(&header_bytes.to_string(), 8));
-    header.extend(ascii_pad("", 44));
+    header.extend(ascii_pad(reserved, 44));
     header.extend(ascii_pad(&records.to_string(), 8));
     header.extend(ascii_pad(&format_edf_physical(record_duration), 8));
     header.extend(ascii_pad(&channel_count.to_string(), 4));
@@ -881,8 +980,9 @@ fn edf_header(
             header.extend(ascii_pad("HP:0.3 LP:35", 80));
         }
     }
-    for _ in 0..channel_count {
-        header.extend(ascii_pad(&sample_rate.to_string(), 8));
+    for channel in 0..channel_count {
+        let count = samples_per_channel.get(channel).copied().unwrap_or(1);
+        header.extend(ascii_pad(&count.to_string(), 8));
     }
     for _ in 0..channel_count {
         header.extend(ascii_pad("", 32));
@@ -1000,15 +1100,19 @@ unsafe fn edf_open_with_labels_and_ranges_impl(
         CStr::from_ptr(subject).to_str().unwrap_or("unknown")
     };
 
-    let mut names_vec = Vec::new();
-    let mut dims_vec = Vec::new();
-    let mut prefs_vec = Vec::new();
-    let mut trans_vec = Vec::new();
+    let mut names_vec = Vec::with_capacity(channel_count + 1);
+    let mut dims_vec = Vec::with_capacity(channel_count + 1);
+    let mut prefs_vec = Vec::with_capacity(channel_count + 1);
+    let mut trans_vec = Vec::with_capacity(channel_count + 1);
 
     if !channel_names.is_null() {
         let slice = std::slice::from_raw_parts(channel_names, channel_count);
         for &ptr in slice {
             names_vec.push(CStr::from_ptr(ptr).to_string_lossy().into_owned());
+        }
+    } else {
+        for i in 0..channel_count {
+            names_vec.push(format!("EEG {}", i + 1));
         }
     }
     if !phys_dims.is_null() {
@@ -1016,38 +1120,55 @@ unsafe fn edf_open_with_labels_and_ranges_impl(
         for &ptr in slice {
             dims_vec.push(CStr::from_ptr(ptr).to_string_lossy().into_owned());
         }
+    } else {
+        dims_vec.resize(channel_count, "uV".to_string());
     }
     if !prefilters.is_null() {
         let slice = std::slice::from_raw_parts(prefilters, channel_count);
         for &ptr in slice {
             prefs_vec.push(CStr::from_ptr(ptr).to_string_lossy().into_owned());
         }
+    } else {
+        prefs_vec.resize(channel_count, "None".to_string());
     }
     if !transducers.is_null() {
         let slice = std::slice::from_raw_parts(transducers, channel_count);
         for &ptr in slice {
             trans_vec.push(CStr::from_ptr(ptr).to_string_lossy().into_owned());
         }
+    } else {
+        trans_vec.resize(channel_count, "EEG electrode".to_string());
     }
-    let phys_min_vec = if phys_min.is_null() {
+    let mut phys_min_vec = if phys_min.is_null() {
         vec![-250000.0; channel_count]
     } else {
         std::slice::from_raw_parts(phys_min, channel_count).to_vec()
     };
-    let phys_max_vec = if phys_max.is_null() {
+    let mut phys_max_vec = if phys_max.is_null() {
         vec![250000.0; channel_count]
     } else {
         std::slice::from_raw_parts(phys_max, channel_count).to_vec()
     };
 
+    // Append mandatory EDF+ Annotations channel so all markers are embedded cleanly.
+    let total_channel_count = channel_count + 1;
+    names_vec.push("EDF Annotations".to_string());
+    dims_vec.push(String::new());
+    prefs_vec.push(String::new());
+    trans_vec.push(String::new());
+    phys_min_vec.push(-1.0);
+    phys_max_vec.push(1.0);
+    let mut samples_per_channel = vec![samples_per_record; channel_count];
+    samples_per_channel.push(EDF_ANN_SAMPLES_PER_RECORD);
+
     let mut file = match File::create(path) {
         Ok(file) => file,
         Err(_) => return ptr::null_mut(),
     };
-    let header = edf_header(
+    let header = edf_header_ext(
         subject,
-        channel_count,
-        samples_per_record,
+        total_channel_count,
+        &samples_per_channel,
         record_duration,
         -1,
         Some(names_vec),
@@ -1056,6 +1177,7 @@ unsafe fn edf_open_with_labels_and_ranges_impl(
         Some(trans_vec),
         Some(&phys_min_vec),
         Some(&phys_max_vec),
+        "EDF+C",
     );
     if file.write_all(&header).is_err() {
         return ptr::null_mut();
@@ -1063,12 +1185,15 @@ unsafe fn edf_open_with_labels_and_ranges_impl(
 
     Box::into_raw(Box::new(EdfWriter {
         file,
-        channel_count,
+        signal_channel_count: channel_count,
         samples_per_record,
-        records: 0,
+        record_duration,
         record_samples: vec![Vec::with_capacity(samples_per_record); channel_count],
+        records: 0,
+        total_samples_written: 0,
         phys_min: phys_min_vec,
         phys_max: phys_max_vec,
+        pending_annotations: Vec::new(),
     }))
 }
 
@@ -1227,5 +1352,61 @@ mod tests {
         assert!(score.ready);
         assert_eq!(score.artifact_ratio, 1.0);
         assert_eq!(score.confidence, 0.0);
+    }
+
+    #[test]
+    fn edf_plus_writes_tal_annotations() {
+        let dir = std::env::temp_dir();
+        let path = dir.join(format!("ccs_edf_plus_test_{}.edf", std::process::id()));
+        let path_c = CString::new(path.to_str().unwrap()).unwrap();
+        let subj_c = CString::new("S001").unwrap();
+        let ch1 = CString::new("Fp1").unwrap();
+        let unit = CString::new("uV").unwrap();
+        let pref = CString::new("None").unwrap();
+        let trans = CString::new("EEG electrode").unwrap();
+        let names = [ch1.as_ptr()];
+        let units = [unit.as_ptr()];
+        let prefs = [pref.as_ptr()];
+        let transs = [trans.as_ptr()];
+        let pmin = [-3000.0_f64];
+        let pmax = [3000.0_f64];
+        unsafe {
+            let writer = tn_edf_open_with_labels_and_ranges(
+                path_c.as_ptr(),
+                subj_c.as_ptr(),
+                names.as_ptr(),
+                units.as_ptr(),
+                prefs.as_ptr(),
+                transs.as_ptr(),
+                pmin.as_ptr(),
+                pmax.as_ptr(),
+                1,
+                250,
+            );
+            assert!(!writer.is_null());
+            let sample = [12.5_f64];
+            for idx in 0..300 {
+                assert!(tn_edf_push_sample(writer, sample.as_ptr(), 1));
+                if idx == 125 {
+                    let lbl = CString::new("Task (30)").unwrap();
+                    assert_eq!(tn_edf_push_annotation(writer, 0.5, 0.0, lbl.as_ptr()), 1);
+                }
+            }
+            assert!(tn_edf_close(writer));
+        }
+        let bytes = std::fs::read(&path).expect("edf file readable");
+        let _ = std::fs::remove_file(&path);
+        assert_eq!(&bytes[192..197], b"EDF+C");
+        let num_channels: usize = std::str::from_utf8(&bytes[252..256])
+            .unwrap()
+            .trim()
+            .parse()
+            .unwrap();
+        assert_eq!(num_channels, 2); // 1 signal + EDF Annotations
+        let ann_label = std::str::from_utf8(&bytes[256 + 16..256 + 32]).unwrap().trim();
+        assert_eq!(ann_label, "EDF Annotations");
+        let raw_text = String::from_utf8_lossy(&bytes);
+        assert!(raw_text.contains("Task (30)"));
+        assert!(raw_text.contains("+0.500\x14Task (30)\x14"));
     }
 }
