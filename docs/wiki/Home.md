@@ -12,10 +12,10 @@ Welcome to the official operator and researcher Wiki for **CCS Mobile Studio** (
 - **Multi-Profile Hardware Presets & Cold-Start BLE Fix:** Define multiple project-tagged profiles per amplifier, duplicate/import/export JSON, and connect reliably on first scan.
 
 ## Navigation
-* [EEG Recorder & Signal Quality](EEG-Recorder-and-Signal-Quality)
-* [Realtime EEG Cleaning (ASR & OSCAR)](Realtime-EEG-Cleaning-ASR-OSCAR)
-* [ERP CORE & Conventional ERP](ERP-CORE-and-Conventional-ERP)
-* [Neural Speech Tracking](Neural-Speech-Tracking)
-* [AV Sync & EDF+ Annotations](AV-Sync-and-EDF-Plus)
-* [Device Profiles & Hardware](Device-Profiles-and-Hardware)
-* [In-App Updates & Release Guide](In-App-Updates-and-Release-Guide)
+* [EEG Recorder & Signal Quality](EEG-Recorder-and-Signal-Quality.md)
+* [Realtime EEG Cleaning (ASR & OSCAR)](Realtime-EEG-Cleaning-ASR-OSCAR.md)
+* [ERP CORE & Conventional ERP](ERP-CORE-and-Conventional-ERP.md)
+* [Neural Speech Tracking](Neural-Speech-Tracking.md)
+* [AV Sync & EDF+ Annotations](AV-Sync-and-EDF-Plus.md)
+* [Device Profiles & Hardware](Device-Profiles-and-Hardware.md)
+* [In-App Updates & Release Guide](In-App-Updates-and-Release-Guide.md)

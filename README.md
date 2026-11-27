@@ -17,15 +17,15 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/CCS-NIMHANS/CCS_MobileStudio/releases/latest"><img alt="Latest release" src="https://img.shields.io/github/v/release/CCS-NIMHANS/CCS_MobileStudio?style=for-the-badge&color=3b6ea5&label=RELEASE"></a>
-  <a href="https://github.com/CCS-NIMHANS/CCS_MobileStudio/actions/workflows/desktop-release.yml"><img alt="Desktop build" src="https://img.shields.io/github/actions/workflow/status/CCS-NIMHANS/CCS_MobileStudio/desktop-release.yml?style=for-the-badge&label=BUILD"></a>
-  <a href="https://github.com/CCS-NIMHANS/CCS_MobileStudio/releases"><img alt="Downloads" src="https://img.shields.io/github/downloads/CCS-NIMHANS/CCS_MobileStudio/total?style=for-the-badge&color=16a34a&label=DOWNLOADS"></a>
+  <a href="https://github.com/CCS-NIMHANS/CCS_MobileStudio/releases/latest"><b>📦 Latest Release (v1.0.12+15)</b></a> &nbsp;·&nbsp;
+  <a href="https://github.com/CCS-NIMHANS/CCS_MobileStudio/actions/workflows/desktop-release.yml"><b>⚙️ Build Status</b></a> &nbsp;·&nbsp;
+  <a href="https://github.com/CCS-NIMHANS/CCS_MobileStudio/releases"><b>⬇️ All Releases &amp; Checksums</b></a>
 </p>
 
 <p align="center">
   <b>Current version: 1.0.12 (Build 15)</b> ·
   <a href="RELEASE_NOTES.md">Detailed changelog</a> ·
-  <a href="https://github.com/CCS-NIMHANS/CCS_MobileStudio/wiki">Project Wiki</a> ·
+  <a href="docs/wiki/Home.md">Documentation &amp; Wiki</a> ·
   <a href="https://github.com/CCS-NIMHANS/CCS_MobileStudio/issues">Report a problem</a>
 </p>
 
@@ -34,7 +34,7 @@
   <a href="#about"><b>About</b></a> &nbsp;•&nbsp;
   <a href="#-research-modules"><b>Research Modules</b></a> &nbsp;•&nbsp;
   <a href="#-building-from-source"><b>Build from Source</b></a> &nbsp;•&nbsp;
-  <a href="https://github.com/CCS-NIMHANS/CCS_MobileStudio/wiki"><b>Wiki &amp; Guides</b></a> &nbsp;•&nbsp;
+  <a href="docs/wiki/Home.md"><b>Wiki &amp; Guides</b></a> &nbsp;•&nbsp;
   <a href="RELEASE_NOTES.md"><b>Release Notes</b></a>
 </p>
 
@@ -253,7 +253,7 @@ flutter build windows --release
 
 ## 📚 Documentation & Wiki
 
-* **[Project Wiki](https://github.com/CCS-NIMHANS/CCS_MobileStudio/wiki)** — Step-by-step operator guides for acquisition, cleaning, paradigms, and updates.
+* **[Documentation & Wiki Index](docs/wiki/Home.md)** — Step-by-step operator guides for acquisition, cleaning, paradigms, and updates.
 * [Standalone EEG Recorder, Signal Quality & ASR Cleaning](docs/eeg_recorder_and_cleaning.md)
 * [ERP CORE & Conventional ERP Laboratory](docs/erp_core.md)
 * [Dichotic Neural Speech Tracking (TRF)](docs/neural_speech_tracking.md)
