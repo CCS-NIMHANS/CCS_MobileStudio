@@ -2,7 +2,9 @@ import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
+import 'package:package_info_plus/package_info_plus.dart';
 import 'package:provider/provider.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../../core/eeg/acquisition_service.dart';
 import '../../core/models/device_profile.dart';
@@ -275,7 +277,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                   ),
                   if (wideTitle)
                     const Text(
-                      'Unified Neuro-Cognitive & Electrophysiology Suite • NIMHANS / IAM',
+                      'Unified Neuro-Cognitive & Electrophysiology Suite',
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: TextStyle(
@@ -334,6 +336,15 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
             ),
             tooltip: 'Settings & Device Profiles',
             onPressed: _openSettings,
+          ),
+          IconButton(
+            icon: const Icon(
+              Icons.help_outline,
+              color: StudioColors.textSecondary,
+              size: 20,
+            ),
+            tooltip: 'Help & About',
+            onPressed: () => _showHelpAboutDialog(context),
           ),
           IconButton(
             icon: const Icon(
@@ -1166,6 +1177,161 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       ),
       isScrollControlled: true,
       builder: (_) => _DiagnosticsDrawer(),
+    );
+  }
+
+  Future<void> _showHelpAboutDialog(BuildContext context) async {
+    Future<void> openExternal(String url) async {
+      await launchUrl(Uri.parse(url), mode: LaunchMode.externalApplication);
+    }
+
+    await showDialog<void>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: StudioColors.card,
+        title: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(7),
+              decoration: BoxDecoration(
+                color: StudioColors.teal.withValues(alpha: 0.14),
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(
+                  color: StudioColors.teal.withValues(alpha: 0.3),
+                ),
+              ),
+              child: const Icon(Icons.hub, color: StudioColors.teal, size: 20),
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Text(
+                    'CCS Mobile Studio',
+                    style: TextStyle(
+                      color: StudioColors.textPrimary,
+                      fontWeight: FontWeight.bold,
+                      fontSize: 18,
+                    ),
+                  ),
+                  FutureBuilder<PackageInfo>(
+                    future: PackageInfo.fromPlatform(),
+                    builder: (_, snap) {
+                      final info = snap.data;
+                      final ver = info == null
+                          ? 'v1.0.12'
+                          : 'v${info.version} (Build ${info.buildNumber})';
+                      return Text(
+                        ver,
+                        style: const TextStyle(
+                          color: StudioColors.textSecondary,
+                          fontSize: 12,
+                          fontWeight: FontWeight.normal,
+                        ),
+                      );
+                    },
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+        content: SizedBox(
+          width: 480,
+          child: SingleChildScrollView(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Text(
+                  'Unified suite for live EEG/fNIRS acquisition, real-time Rust ASR/OSCAR artifact cleaning, sleep staging (Train NIDRA), standardized ERP CORE & cognitive batteries, neural speech tracking, cardiac interoception, and resonance breathing.',
+                  style: TextStyle(
+                    color: StudioColors.textSecondary,
+                    fontSize: 13,
+                    height: 1.45,
+                  ),
+                ),
+                const SizedBox(height: 14),
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: StudioColors.surface,
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(color: StudioColors.border),
+                  ),
+                  child: const Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Research & Engineering Collaboration',
+                        style: TextStyle(
+                          color: StudioColors.textPrimary,
+                          fontWeight: FontWeight.w700,
+                          fontSize: 13,
+                        ),
+                      ),
+                      SizedBox(height: 6),
+                      Text(
+                        'Centre for Consciousness Studies (CCS), Department of Neurophysiology, National Institute of Mental Health and Neurosciences (NIMHANS), Bengaluru, India.',
+                        style: TextStyle(
+                          color: StudioColors.textSecondary,
+                          fontSize: 12.5,
+                          height: 1.4,
+                        ),
+                      ),
+                      SizedBox(height: 6),
+                      Text(
+                        'Hardware & engineering collaboration: Axxonet and Neurostellar.',
+                        style: TextStyle(
+                          color: StudioColors.textSecondary,
+                          fontSize: 12.5,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 14),
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: [
+                    OutlinedButton.icon(
+                      onPressed: () => openExternal(
+                        'https://github.com/CCS-NIMHANS/CCS_MobileStudio#readme',
+                      ),
+                      icon: const Icon(Icons.menu_book_outlined, size: 16),
+                      label: const Text('README & Guides'),
+                    ),
+                    OutlinedButton.icon(
+                      onPressed: () => openExternal(
+                        'https://github.com/CCS-NIMHANS/CCS_MobileStudio/wiki',
+                      ),
+                      icon: const Icon(Icons.library_books_outlined, size: 16),
+                      label: const Text('Project Wiki'),
+                    ),
+                    OutlinedButton.icon(
+                      onPressed: () => openExternal(
+                        'https://github.com/CCS-NIMHANS/CCS_MobileStudio/releases',
+                      ),
+                      icon: const Icon(Icons.new_releases_outlined, size: 16),
+                      label: const Text('Releases'),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ),
+        actions: [
+          FilledButton(
+            onPressed: () => Navigator.of(ctx).pop(),
+            child: const Text('Close'),
+          ),
+        ],
+      ),
     );
   }
 }
