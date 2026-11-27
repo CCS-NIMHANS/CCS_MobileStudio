@@ -9,6 +9,7 @@ import '../../core/services/multi_device_acquisition_service.dart';
 import '../../core/services/multi_stream_lsl_service.dart';
 import '../../core/services/session_manager.dart';
 import '../../core/services/settings_service.dart';
+import '../../core/theme/studio_theme.dart';
 import '../../core/widgets/connection_status_bar.dart';
 import 'hrd_engine.dart';
 import 'hrd_models.dart';
@@ -527,7 +528,11 @@ class HrdRatePainter extends CustomPainter {
     final t = TextPainter(
       text: TextSpan(
         text: bpm.toStringAsFixed(1),
-        style: const TextStyle(color: Colors.white, fontSize: 24),
+        style: const TextStyle(
+          color: StudioColors.textPrimary,
+          fontSize: 24,
+          fontWeight: FontWeight.w600,
+        ),
       ),
       textDirection: TextDirection.ltr,
     )..layout();
@@ -562,9 +567,9 @@ class HrdSignalPainter extends CustomPainter {
     c.drawPath(
       p,
       Paint()
-        ..color = Colors.tealAccent
+        ..color = StudioColors.teal
         ..style = PaintingStyle.stroke
-        ..strokeWidth = 1,
+        ..strokeWidth = 1.4,
     );
   }
 

@@ -153,7 +153,7 @@ class _LivePainter extends CustomPainter {
         latest,
         lane++,
         lanes,
-        const Color(0xFF22D3EE),
+        StudioColors.sky,
         'PPG',
       );
     }
@@ -291,7 +291,7 @@ class _VerificationPainter extends CustomPainter {
       canvas.drawLine(
         Offset(x, top),
         Offset(x, size.height - 25),
-        Paint()..color = Colors.white10,
+        Paint()..color = StudioColors.border,
       );
       _text(canvas, '$percent%', Offset(x - 10, size.height - 20));
     }
@@ -302,7 +302,7 @@ class _VerificationPainter extends CustomPainter {
       plotWidth,
       top,
       waveBottom,
-      const Color(0xFF22D3EE),
+      StudioColors.sky,
       'PPG average',
     );
     _averagePath(
@@ -404,12 +404,12 @@ class _VerificationPainter extends CustomPainter {
     String label,
   ) {
     final paint = Paint()
-      ..color = Colors.amberAccent.withValues(alpha: 0.7)
+      ..color = StudioColors.amber.withValues(alpha: 0.75)
       ..strokeWidth = 1;
     for (var y = top; y < bottom; y += 7) {
       canvas.drawLine(Offset(x, y), Offset(x, min(bottom, y + 4)), paint);
     }
-    _text(canvas, label, Offset(x + 2, top), color: Colors.amberAccent);
+    _text(canvas, label, Offset(x + 2, top), color: StudioColors.amber);
   }
 
   @override

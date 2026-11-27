@@ -47,7 +47,7 @@ class AppUpdateInfo {
 }
 
 class AppUpdateService {
-  static const repository = 'arunsasidharan84/CCS_MobileStudio';
+  static const repository = 'CCS-NIMHANS/CCS_MobileStudio';
   static final releasesPage = Uri.parse(
     'https://github.com/$repository/releases',
   );

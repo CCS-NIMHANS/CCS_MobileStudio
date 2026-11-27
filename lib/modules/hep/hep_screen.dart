@@ -10,6 +10,7 @@ import '../../core/services/multi_device_acquisition_service.dart';
 import '../../core/services/multi_stream_lsl_service.dart';
 import '../../core/services/file_naming_service.dart';
 import '../../core/services/settings_service.dart';
+import '../../core/theme/studio_theme.dart';
 import '../../core/models/module_type.dart';
 import 'hep_engine.dart';
 import 'orbit_hep_session.dart';
@@ -493,7 +494,10 @@ class _HepPlot extends CustomPainter {
     final text = TextPainter(
       text: TextSpan(
         text: '±${scale.toStringAsFixed(1)} µV',
-        style: const TextStyle(color: Colors.white),
+        style: const TextStyle(
+          color: StudioColors.textPrimary,
+          fontWeight: FontWeight.w600,
+        ),
       ),
       textDirection: TextDirection.ltr,
     )..layout();

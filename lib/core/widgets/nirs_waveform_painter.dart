@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../theme/studio_theme.dart';
 
 /// Custom painter for fNIRS data (HbO in red, HbR in blue, HbT in purple).
 /// Groups channel pairs and renders each as a separate trace with auto-scaling.
@@ -13,9 +14,9 @@ class NirsWaveformPainter extends CustomPainter {
   final List<String> channelNames;
   final Set<int> hiddenChannels;
 
-  static const Color _hboColor = Color(0xFFFF6B6B); // red — oxygenated Hb
-  static const Color _hbrColor = Color(0xFF6B9FFF); // blue — deoxygenated Hb
-  static const Color _hbtColor = Color(0xFFB57BFF); // purple — total Hb
+  static const Color _hboColor = Color(0xFFDC2626); // red — oxygenated Hb
+  static const Color _hbrColor = Color(0xFF1D4ED8); // blue — deoxygenated Hb
+  static const Color _hbtColor = Color(0xFF7C3AED); // purple — total Hb
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -32,7 +33,7 @@ class NirsWaveformPainter extends CustomPainter {
 
     // Background grid lines
     final gridPaint = Paint()
-      ..color = Colors.white.withOpacity(0.05)
+      ..color = StudioColors.border.withValues(alpha: 0.5)
       ..strokeWidth = 0.5;
 
     for (var i = 0; i <= n; i++) {

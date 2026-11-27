@@ -87,7 +87,7 @@ class _SettingsScreenState extends State<SettingsScreen>
           tabAlignment: TabAlignment.start,
           indicatorColor: lightTeal,
           labelColor: lightTeal,
-          unselectedLabelColor: StudioColors.textMuted,
+          unselectedLabelColor: StudioColors.textSecondary,
           tabs: const [
             Tab(text: 'Channel Configuration'),
             Tab(text: 'Device & Network Settings'),
@@ -197,7 +197,7 @@ class _SettingsScreenState extends State<SettingsScreen>
                         profile.transport == ConnectionTransport.lsl
                             ? Icons.wifi
                             : Icons.bluetooth,
-                        color: profile.enabled ? lightTeal : Colors.white30,
+                        color: profile.enabled ? lightTeal : StudioColors.textMuted,
                       ),
                       const SizedBox(width: 10),
                       Expanded(
@@ -325,10 +325,10 @@ class _SettingsScreenState extends State<SettingsScreen>
                       if (!isCore)
                         ActionChip(
                           avatar: const Icon(Icons.delete_outline,
-                              size: 15, color: Colors.redAccent),
+                              size: 15, color: StudioColors.red),
                           label: const Text('Delete',
                               style: TextStyle(
-                                  fontSize: 11.5, color: Colors.redAccent)),
+                                  fontSize: 11.5, color: StudioColors.red)),
                           onPressed: () =>
                               settings.removeDeviceProfile(profile.id),
                         ),
@@ -674,7 +674,7 @@ class _SettingsScreenState extends State<SettingsScreen>
                 },
                 child: const Text(
                   'Delete',
-                  style: TextStyle(color: Colors.redAccent),
+                  style: TextStyle(color: StudioColors.red),
                 ),
               ),
             TextButton(
@@ -785,7 +785,7 @@ class _SettingsScreenState extends State<SettingsScreen>
                 tooltip: 'Remove stream',
                 onPressed: () =>
                     setDialogState(() => device.streams.removeAt(index)),
-                icon: const Icon(Icons.delete_outline, color: Colors.redAccent),
+                icon: const Icon(Icons.delete_outline, color: StudioColors.red),
               ),
           ],
         ),
@@ -1616,7 +1616,9 @@ class _SettingsScreenState extends State<SettingsScreen>
                   label: const Text('Export Backup'),
                   style: ElevatedButton.styleFrom(
                     backgroundColor: StudioColors.card,
-                    foregroundColor: Colors.white,
+                    foregroundColor: StudioColors.textPrimary,
+                    side: const BorderSide(color: StudioColors.border),
+                    elevation: 0,
                     padding: const EdgeInsets.symmetric(vertical: 12),
                   ),
                 ),

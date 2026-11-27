@@ -1,9 +1,10 @@
 import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:open_filex/open_filex.dart';
+import '../../core/theme/studio_theme.dart';
 import 'hrd_models.dart';
 
-const _teal = Color(0xFF5EEAD4);
+const _teal = StudioColors.teal;
 
 class HrdCombinedResponse extends StatefulWidget {
   const HrdCombinedResponse({super.key, required this.onConfirm});
@@ -104,7 +105,7 @@ class HrdJourneyProgress extends StatelessWidget {
                         value: v,
                         strokeWidth: 7,
                         color: _teal,
-                        backgroundColor: Colors.white12,
+                        backgroundColor: StudioColors.canvas,
                       ),
                     ),
                   ),
@@ -138,7 +139,7 @@ class HrdJourneyProgress extends StatelessWidget {
                   LinearProgressIndicator(
                     value: progress,
                     color: _teal,
-                    backgroundColor: Colors.white12,
+                    backgroundColor: StudioColors.canvas,
                   ),
                   const SizedBox(height: 10),
                   Text(stage),
@@ -146,8 +147,8 @@ class HrdJourneyProgress extends StatelessWidget {
                     const SizedBox(height: 6),
                     LinearProgressIndicator(
                       value: fraction.clamp(0, 1),
-                      color: Colors.indigoAccent,
-                      backgroundColor: Colors.white12,
+                      color: StudioColors.blue,
+                      backgroundColor: StudioColors.canvas,
                     ),
                     const SizedBox(height: 4),
                     Text(
@@ -177,7 +178,7 @@ class HrdResponseCountdown extends StatelessWidget {
     final clamped = remainingSeconds.clamp(0.0, safeTotal);
     final fraction = (clamped / safeTotal).clamp(0.0, 1.0);
     final urgent = clamped <= 3.0;
-    final color = urgent ? Colors.orangeAccent : _teal;
+    final color = urgent ? StudioColors.amber : _teal;
     return Card(
       key: const Key('hrd-response-countdown'),
       child: Padding(
@@ -214,7 +215,7 @@ class HrdResponseCountdown extends StatelessWidget {
               key: const Key('hrd-response-countdown-bar'),
               value: fraction,
               color: color,
-              backgroundColor: Colors.white12,
+              backgroundColor: StudioColors.canvas,
               minHeight: 6,
             ),
           ],
@@ -331,7 +332,7 @@ class _HrdResultsPanelState extends State<HrdResultsPanel> {
                 const Text(
                   'Exploratory model estimates, not an interoceptive ability score. Short sessions and steepness estimates require particular caution.',
                   textAlign: TextAlign.center,
-                  style: TextStyle(color: Colors.white60),
+                  style: TextStyle(color: StudioColors.textSecondary),
                 ),
               ],
             ),
@@ -363,7 +364,7 @@ class _HrdResultsPanelState extends State<HrdResultsPanel> {
                   const SizedBox(height: 10),
                   const Text(
                     'Subjective confidence reflects interoceptive sensibility. Metacognitive calibration assesses whether certainty increases on objectively correct decisions.',
-                    style: TextStyle(color: Colors.white70),
+                    style: TextStyle(color: StudioColors.textSecondary),
                   ),
                   const SizedBox(height: 16),
                   Wrap(
@@ -396,7 +397,7 @@ class _HrdResultsPanelState extends State<HrdResultsPanel> {
                     Text(
                       'Catch trials: ${conf.catchMean?.toStringAsFixed(1) ?? 'NA'} / 9  •  Adaptive trials: ${conf.adaptiveMean?.toStringAsFixed(1) ?? 'NA'} / 9'
                       '${conf.accuracy != null ? "  •  Accuracy: ${(conf.accuracy! * 100).toStringAsFixed(0)}%" : ""}',
-                      style: const TextStyle(color: Colors.white60),
+                      style: const TextStyle(color: StudioColors.textSecondary),
                     ),
                   const SizedBox(height: 6),
                   Text(
@@ -409,7 +410,7 @@ class _HrdResultsPanelState extends State<HrdResultsPanel> {
                         : 'Neutral calibration: Confidence was balanced across correct and incorrect judgments.',
                     style: const TextStyle(
                       fontStyle: FontStyle.italic,
-                      color: Colors.white70,
+                      color: StudioColors.textSecondary,
                     ),
                   ),
                 ],
@@ -494,21 +495,21 @@ class _HrdResultsPanelState extends State<HrdResultsPanel> {
                   runSpacing: 8,
                   children: chartMode == HrdChartMode.confidence
                       ? [
-                          _legend(Colors.greenAccent, 'Correct rating'),
-                          _legend(Colors.amberAccent, 'Incorrect rating'),
-                          _legend(Colors.purpleAccent, 'Catch trial'),
+                          _legend(StudioColors.emerald, 'Correct rating'),
+                          _legend(StudioColors.amber, 'Incorrect rating'),
+                          _legend(StudioColors.violet, 'Catch trial'),
                           if (conf != null)
                             _legend(
                               _teal,
                               'Mean (${conf.meanConfidence.toStringAsFixed(1)})',
                             ),
-                          _legend(Colors.white54, 'Unrated / missed'),
+                          _legend(StudioColors.textMuted, 'Unrated / missed'),
                         ]
                       : [
-                          _legend(Colors.redAccent, 'Answered faster'),
-                          _legend(Colors.blueAccent, 'Answered slower'),
-                          _legend(Colors.grey, 'Catch (diamond)'),
-                          _legend(Colors.white54, 'Missed (outline)'),
+                          _legend(StudioColors.red, 'Answered faster'),
+                          _legend(StudioColors.blue, 'Answered slower'),
+                          _legend(StudioColors.textSecondary, 'Catch (diamond)'),
+                          _legend(StudioColors.textMuted, 'Missed (outline)'),
                           _legend(
                             _teal,
                             chartMode == HrdChartMode.heartAndFeedback
@@ -524,7 +525,7 @@ class _HrdResultsPanelState extends State<HrdResultsPanel> {
                       : chartMode == HrdChartMode.heartAndFeedback
                       ? 'Tap a round for its measured and feedback rates.'
                       : 'The SD/2 band reproduces the source task. It is not a 95% credible interval. Tap a round for details.',
-                  style: const TextStyle(color: Colors.white60),
+                  style: const TextStyle(color: StudioColors.textSecondary),
                 ),
                 if (selected != null && selected! < rows.length) ...[
                   const Divider(),
@@ -616,7 +617,7 @@ class HrdAccessibleChart extends CustomPainter {
     Canvas c,
     String text,
     Offset position, {
-    Color color = Colors.white60,
+    Color color = StudioColors.textSecondary,
   }) {
     final t = TextPainter(
       text: TextSpan(
@@ -651,7 +652,7 @@ class HrdAccessibleChart extends CustomPainter {
         c.drawLine(
           Offset(left, yy),
           Offset(right, yy),
-          Paint()..color = Colors.white12,
+          Paint()..color = StudioColors.border,
         );
         label(c, '$tick', Offset(25, yy - 6));
       }
@@ -698,16 +699,16 @@ class HrdAccessibleChart extends CustomPainter {
             Offset(xx, y(0)),
             Offset(xx, yy),
             Paint()
-              ..color = Colors.white24
+              ..color = StudioColors.border
               ..strokeWidth = 1.5,
           );
           final color = r['TrialType'] == 'catch'
-              ? Colors.purpleAccent
+              ? StudioColors.violet
               : r['SubjAccuracy'] == 1
-              ? Colors.greenAccent
+              ? StudioColors.emerald
               : r['SubjAccuracy'] == 0
-              ? Colors.amberAccent
-              : Colors.white70;
+              ? StudioColors.amber
+              : StudioColors.textSecondary;
           c.drawCircle(Offset(xx, yy), 5, Paint()..color = color);
           if (rows.length <= 16) {
             label(
@@ -722,7 +723,7 @@ class HrdAccessibleChart extends CustomPainter {
             Offset(xx, y(0)),
             4,
             Paint()
-              ..color = Colors.white38
+              ..color = StudioColors.textMuted
               ..style = PaintingStyle.stroke
               ..strokeWidth = 1.5,
           );
@@ -761,7 +762,7 @@ class HrdAccessibleChart extends CustomPainter {
       c.drawLine(
         Offset(left, yy),
         Offset(right, yy),
-        Paint()..color = Colors.white12,
+        Paint()..color = StudioColors.border,
       );
       label(c, v.toStringAsFixed(0), Offset(5, yy - 6));
     }
@@ -772,7 +773,7 @@ class HrdAccessibleChart extends CustomPainter {
         Offset(left, y(0)),
         Offset(right, y(0)),
         Paint()
-          ..color = Colors.white38
+          ..color = StudioColors.textMuted
           ..strokeWidth = 1.5,
       );
     }
@@ -793,12 +794,12 @@ class HrdAccessibleChart extends CustomPainter {
       }
       final response = r['SubjResponse'];
       final color = response == null
-          ? Colors.white54
+          ? StudioColors.textMuted
           : r['TrialType'] == 'catch'
-          ? Colors.grey
+          ? StudioColors.textSecondary
           : response == 1
-          ? Colors.redAccent
-          : Colors.blueAccent;
+          ? StudioColors.red
+          : StudioColors.blue;
       final value = (r[rates ? 'PresentedRate' : 'PsiDeltaRate'] as num)
           .toDouble();
       final point = Offset(xx, y(value));

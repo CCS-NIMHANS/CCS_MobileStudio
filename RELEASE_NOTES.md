@@ -1,16 +1,32 @@
 # Release Notes — CCS Mobile Studio
 
-## Version 1.0.12 (Build 13) — 26 November 2026
+## Version 1.0.12 (Build 15) — 27 November 2026
 
 ### Highlights
-- **CCS_SleepStudio Clinical Light UI & Responsive Layout**: Redesigned across mobile, tablet, and desktop/laptop with the `#F3F5F8` / `#F8F9FB` / pure white `#FFFFFF` clinical instrument aesthetic, `#3B6EA5` steel-blue accents, crisp ink traces, and responsive navigation.
-- **BLE Cold-Start Reliability & Multi-Profile Device Config**: Fixed first-time BLE scan stalls on macOS, added Stop/Scan state handling, consolidated BLE/LSL/Simulate connection dialog, and added multi-profile support per amplifier (duplicate, import/export, project tags, quick channel templates).
-- **Rust-Accelerated DSP & 60 FPS Rendering**: Ported Welch PSD (`ccs_welch_psd`) and batch signal-quality/passive-impedance computation (`ccs_signal_quality_batch`) to Rust, using zero-shift `Float64RingBuffer`, min-max pixel-column decimation, and decoupled repaint tickers.
-- **Realtime Rust ASR & OSCAR-Style Cleaning**: Added online CleanLine (50/60 Hz + harmonic), sliding-window ASR subspace reconstruction, gated frontal EOG blink regression, and EMG/slew pop suppression (`ccs_cleaner_*`) with live `% Cleaned` indicator (raw EDF+ remains untouched).
-- **EDF+ (`EDF+C`) Annotations & Clean Exports**: Upgraded the native Rust EDF writer to embed `EDF Annotations` TAL events directly in `.edf` files, fixed Page-mode marker coordinates on the live sweep cursor, and eliminated duplicate `recordings/`/`data/` subfolders inside user output directories.
-- **Standardized ERP CORE Paradigms & Real-Time ERPs**: Added all 6 ERP CORE paradigms (**N170**, **MMN**, **N2pc**, **N400**, **P3b**, **ERN/LRP Flankers**) with VSync-locked visual markers, zero-jitter auditory timing, real-time ERP + difference-wave plots, and renamed HRD to **Heart Rate Discrimination**.
-- **Time-Synched Webcam Video & Audio**: Added hardware-timestamped AVFoundation `.mp4` capture (`AV_SYNC_START`/`STOP` EDF+ annotations + `_av_sync.json` sample-offset & drift telemetry).
-- **Dichotic Neural Speech Tracking**: New module presenting simultaneous Left/Right stereo speech streams and running Rust-accelerated multi-feature backward TRF decoding across all or selected EEG channels (effective even with few electrodes).
+- **CCS_SleepStudio Clinical Light Theme & Full Contrast Audit**: Redesigned the entire application across mobile, tablet, and desktop/laptop with the `#F3F5F8` / `#F8F9FB` / pure white `#FFFFFF` clinical instrument aesthetic, `#3B6EA5` steel-blue accents, crisp ink traces, responsive navigation, and full text-visibility fixes across all tabs, dialogs, buttons, and custom painters.
+- **Updated App Icon**: Applied the tightly cropped CCS NIMHANS Mobile Studio rounded-square icon across macOS, Android, and Windows targets.
+- **Standalone EEG Recorder Overhaul**: Reworked layout for maximum waveform viewport space, expanded the Montage & Per-Channel Filter Editor (renaming, re-referencing, per-channel HP/LP/Notch, quick hide/prominent solo toggle), added a docked real-time Welch PSD viewer, live passive Signal Quality / Impedance panel (`kΩ`), pre-set and custom marker buttons, and user-definable export folder without duplicate staging subfolders.
+- **Native Rust Signal Processing & Realtime Cleaning (ASR + OSCAR)**: Ported Welch PSD (`ccs_welch_psd`) and batch signal-quality / passive-impedance computation (`ccs_signal_quality_batch`) to Rust with zero-shift `Float64RingBuffer` storage and min-max pixel-column decimation. Added an online Rust cleaning pipeline (`ccs_cleaner_*`: CleanLine 50/60 Hz + harmonics, sliding-window ASR subspace reconstruction, gated frontal EOG blink regression, EMG/slew pop suppression) with live `% Cleaned` indicator while keeping raw EDF+ recordings untouched.
+- **Native EDF+ (`EDF+C`) Annotations & Page-Mode Marker Fix**: Upgraded the Rust EDF writer to embed `EDF Annotations` TAL events directly in `.edf` files alongside companion CSV logs, and aligned Page-mode markers with the live sweep cursor.
+- **ERP CORE Paradigms, Timing Verification & Real-Time ERPs**: Added all 6 standardized ERP CORE paradigms (**N170**, **MMN**, **N2pc**, **N400**, **P3b**, **ERN/LRP Flankers**), verified zero-jitter VSync/audio marker scheduling across ANGEL / Adaptive WM / Generic ERP, added live real-time ERP & difference-wave plots, renamed HRD to **Heart Rate Discrimination** (with confidence & metacognitive calibration), and linked Home **Edit Flow** directly to the Study Flow tab.
+- **Time-Synched Webcam Video & Audio**: Added hardware-timestamped AVFoundation `.mp4` capture (`macos/Runner/AvSyncRecorder.swift`) emitting `AV_SYNC_START` / `AV_SYNC_STOP` EDF+ annotations and `_av_sync.json` sample-offset & drift telemetry.
+- **Dichotic Neural Speech Tracking**: New module presenting simultaneous Left/Right stereo speech tracks and performing Rust-accelerated multi-feature backward TRF decoding across all or selected EEG electrodes (effective even with sparse montages), reporting block-wise attentional focus scores (`L` vs `R`).
+- **BLE Cold-Start Fix, Multi-Profile Devices & macOS Signing**: Eliminated first-scan BLE discovery stalls on macOS, added multi-profile management per amplifier (duplicate, import/export JSON, project tags, quick channel templates), updated in-app updater repo slug to `CCS-NIMHANS/CCS_MobileStudio`, and added Developer ID + Hardened Runtime + notarization packaging (`scripts/sign_and_notarize_macos.sh`).
+
+### Detailed changes
+
+#### Visual system, icons & accessibility
+- Unified dark slate/amber remnants, ThemeData button/tab/chip/dialog styles, HRD feedback charts, HEP/Resonance plots, Nidra scoring bars & ACLS cue cards, and Settings action buttons onto high-contrast `StudioColors` inks.
+- Tightly cropped `CCS_MobileStudio_Icon.png` across all macOS icon sizes (`16`–`1024` px with drop shadow), Android `mipmap-*` launcher densities, and multi-resolution Windows `.ico`.
+
+#### Acquisition, cleaning & storage integrity
+- Decoupled BLE scanning and GATT discovery with explicit Stop/Scan state handling so first-open discovery finds xAMP-L10 / Orbit amplifiers reliably without reopening the dialog.
+- Page-mode markers now map onto the circular sweep head position rather than blank canvas areas; EDF+ writer writes `EDF+C` headers and encodes TAL records per data record block.
+- Eliminated duplicate `recordings/` and `data/` folders when exporting to a user-chosen output root.
+
+#### Paradigms, neural decoding & documentation
+- Ported backward regularized multi-feature TRF speech tracking (`rust/src/speech_tracking.rs`) and real-time EEG cleaning (`rust/src/cleaning.rs`) to native Rust with unit test coverage (`cargo test --lib`).
+- Updated `README.md`, `RELEASE_NOTES.md`, and added dedicated guides in `docs/` and the project Wiki for the EEG Recorder & Cleaning pipeline, ERP CORE paradigms, and Neural Speech Tracking.
 
 ---
 

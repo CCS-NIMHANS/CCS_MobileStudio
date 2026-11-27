@@ -9,6 +9,7 @@ import '../../core/models/module_type.dart';
 import '../../core/services/file_naming_service.dart';
 import '../../core/services/settings_service.dart';
 import '../../core/services/multi_device_acquisition_service.dart';
+import '../../core/theme/studio_theme.dart';
 import 'resonance_analysis.dart';
 import 'resonance_engine.dart';
 import 'resonance_method_widgets.dart';
@@ -533,7 +534,7 @@ class _ResonanceScreenState extends State<ResonanceScreen>
                       padding: const EdgeInsets.all(12),
                       child: Text(
                         error!,
-                        style: const TextStyle(color: Colors.redAccent),
+                        style: const TextStyle(color: StudioColors.red),
                       ),
                     ),
                 ],
@@ -635,14 +636,14 @@ class _ResponsePlot extends CustomPainter {
       final height = e.metrics.amplitudeMs / maximum * (bottom - 12);
       canvas.drawRect(
         Rect.fromLTWH(x(e.metrics.rate) - 6, bottom - height, 12, height),
-        Paint()..color = e.used ? Colors.tealAccent : Colors.grey,
+        Paint()..color = e.used ? StudioColors.teal : StudioColors.textMuted,
       );
     }
     for (final rate in List.generate(5, (i) => lo + (hi - lo) * i / 4)) {
       final text = TextPainter(
         text: TextSpan(
           text: rate.toStringAsFixed(1),
-          style: const TextStyle(color: Colors.grey, fontSize: 12),
+          style: const TextStyle(color: StudioColors.textSecondary, fontSize: 12),
         ),
         textDirection: TextDirection.ltr,
       )..layout();
@@ -714,14 +715,14 @@ class _IntervalPlot extends CustomPainter {
     canvas.drawPath(
       path,
       Paint()
-        ..color = Colors.tealAccent
+        ..color = StudioColors.teal
         ..style = PaintingStyle.stroke
         ..strokeWidth = 2,
     );
     final label = TextPainter(
       text: TextSpan(
         text: '${lo.toStringAsFixed(0)}–${hi.toStringAsFixed(0)} ms',
-        style: const TextStyle(color: Colors.grey, fontSize: 11),
+        style: const TextStyle(color: StudioColors.textSecondary, fontSize: 11),
       ),
       textDirection: TextDirection.ltr,
     )..layout();

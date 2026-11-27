@@ -335,12 +335,10 @@ class _SleepinessScreenState extends State<SleepinessScreen> {
                 width: double.infinity,
                 child: ElevatedButton.icon(
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: _selectedScore == null
-                        ? const Color(0xFF334155)
-                        : lightTeal,
-                    foregroundColor: _selectedScore == null
-                        ? StudioColors.textMuted
-                        : StudioColors.textPrimary,
+                    backgroundColor: lightTeal,
+                    foregroundColor: Colors.white,
+                    disabledBackgroundColor: StudioColors.border,
+                    disabledForegroundColor: StudioColors.textMuted,
                     padding: const EdgeInsets.symmetric(vertical: 16),
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(12),

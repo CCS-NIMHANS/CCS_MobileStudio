@@ -47,6 +47,10 @@ class StudioTheme {
       colorScheme: colorScheme,
       scaffoldBackgroundColor: StudioColors.canvas,
       fontFamily: Platform.isMacOS ? '.AppleSystemUIFont' : null,
+      textTheme: ThemeData.light().textTheme.apply(
+        bodyColor: StudioColors.textPrimary,
+        displayColor: StudioColors.textPrimary,
+      ),
       appBarTheme: const AppBarTheme(
         backgroundColor: StudioColors.surface,
         foregroundColor: StudioColors.textPrimary,
@@ -54,6 +58,14 @@ class StudioTheme {
         elevation: 0,
         scrolledUnderElevation: 0,
         shape: Border(bottom: BorderSide(color: StudioColors.border)),
+      ),
+      tabBarTheme: const TabBarThemeData(
+        labelColor: StudioColors.teal,
+        unselectedLabelColor: StudioColors.textSecondary,
+        indicatorColor: StudioColors.teal,
+        dividerColor: StudioColors.border,
+        labelStyle: TextStyle(fontWeight: FontWeight.w600),
+        unselectedLabelStyle: TextStyle(fontWeight: FontWeight.w500),
       ),
       cardTheme: CardThemeData(
         color: StudioColors.card,
@@ -67,6 +79,15 @@ class StudioTheme {
       dialogTheme: DialogThemeData(
         backgroundColor: StudioColors.elevated,
         surfaceTintColor: Colors.transparent,
+        titleTextStyle: const TextStyle(
+          color: StudioColors.textPrimary,
+          fontSize: 18,
+          fontWeight: FontWeight.bold,
+        ),
+        contentTextStyle: const TextStyle(
+          color: StudioColors.textSecondary,
+          fontSize: 14,
+        ),
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(14),
           side: const BorderSide(color: StudioColors.border),
@@ -80,6 +101,17 @@ class StudioTheme {
         style: FilledButton.styleFrom(
           backgroundColor: StudioColors.teal,
           foregroundColor: Colors.white,
+          disabledBackgroundColor: StudioColors.border,
+          disabledForegroundColor: StudioColors.textMuted,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+        ),
+      ),
+      elevatedButtonTheme: ElevatedButtonThemeData(
+        style: ElevatedButton.styleFrom(
+          backgroundColor: StudioColors.teal,
+          foregroundColor: Colors.white,
+          disabledBackgroundColor: StudioColors.border,
+          disabledForegroundColor: StudioColors.textMuted,
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
         ),
       ),
@@ -89,6 +121,35 @@ class StudioTheme {
           side: const BorderSide(color: StudioColors.border),
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
         ),
+      ),
+      textButtonTheme: TextButtonThemeData(
+        style: TextButton.styleFrom(
+          foregroundColor: StudioColors.teal,
+        ),
+      ),
+      chipTheme: ChipThemeData(
+        backgroundColor: StudioColors.surface,
+        selectedColor: StudioColors.teal.withValues(alpha: 0.14),
+        labelStyle: const TextStyle(color: StudioColors.textPrimary),
+        secondaryLabelStyle: const TextStyle(
+          color: StudioColors.teal,
+          fontWeight: FontWeight.w600,
+        ),
+        side: const BorderSide(color: StudioColors.border),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+      ),
+      popupMenuTheme: const PopupMenuThemeData(
+        color: StudioColors.card,
+        surfaceTintColor: Colors.transparent,
+        textStyle: TextStyle(color: StudioColors.textPrimary),
+      ),
+      bottomSheetTheme: const BottomSheetThemeData(
+        backgroundColor: StudioColors.card,
+        surfaceTintColor: Colors.transparent,
+      ),
+      listTileTheme: const ListTileThemeData(
+        textColor: StudioColors.textPrimary,
+        iconColor: StudioColors.textSecondary,
       ),
       inputDecorationTheme: InputDecorationTheme(
         filled: true,

@@ -1,6 +1,6 @@
-# Heart Rate Detection (HRD)
+# Heart Rate Discrimination (HRD)
 
-The new **Heart Rate Detection** module ports the runnable `orbit_HRD/ccs_hrd_ui.py` task into MobileStudio. It is separate from HeartSync's cardiac-phase oddball. Select it on the dashboard, or add/reorder it in Settings → Study Sequence. Existing settings gain the new module once; subsequent custom ordering is preserved.
+The **Heart Rate Discrimination (HRD)** module ports the `orbit_HRD/ccs_hrd_ui.py` task into MobileStudio, extended with optional confidence ratings and metacognitive calibration. It is separate from HeartSync's cardiac-phase oddball. Select it on the dashboard, or add/reorder it in Settings → Output & Study Flow. Existing settings gain the module once; subsequent custom ordering is preserved.
 
 ## Run
 

@@ -234,7 +234,7 @@ class _NidraScreenState extends State<NidraScreen>
                   tabAlignment: TabAlignment.start,
                   indicatorColor: lightTeal,
                   labelColor: lightTeal,
-                  unselectedLabelColor: StudioColors.textMuted,
+                  unselectedLabelColor: StudioColors.textSecondary,
                   tabs: const [
                     Tab(text: 'Live Sleep Staging & Hypnogram'),
                     Tab(text: 'Auditory Closed-Loop Stim (ACLS)'),
@@ -333,9 +333,7 @@ class _NidraScreenState extends State<NidraScreen>
                                       backgroundColor: isRecording
                                           ? const Color(0xFFEF4444)
                                           : lightTeal,
-                                      foregroundColor: isRecording
-                                          ? Colors.white
-                                          : StudioColors.textPrimary,
+                                      foregroundColor: Colors.white,
                                       padding: const EdgeInsets.symmetric(
                                         horizontal: 20,
                                         vertical: 14,
@@ -565,7 +563,7 @@ class _NidraScreenState extends State<NidraScreen>
                             borderRadius: BorderRadius.circular(12),
                             border: Border.all(
                               color: stimService.notificationActive
-                                  ? Colors.orangeAccent
+                                  ? StudioColors.amber
                                   : lightTeal,
                               width: 2,
                             ),
@@ -577,7 +575,7 @@ class _NidraScreenState extends State<NidraScreen>
                                     ? Icons.notifications_active
                                     : Icons.bedtime,
                                 color: stimService.notificationActive
-                                    ? Colors.orangeAccent
+                                    ? StudioColors.amber
                                     : lightTeal,
                               ),
                               const SizedBox(width: 10),
@@ -618,7 +616,7 @@ class _NidraScreenState extends State<NidraScreen>
                         child: Container(
                           decoration: BoxDecoration(
                             border: Border.all(
-                              color: Colors.orangeAccent,
+                              color: StudioColors.amber,
                               width: 12,
                             ),
                           ),
@@ -745,7 +743,7 @@ class _NidraScreenState extends State<NidraScreen>
             final compact = constraints.maxWidth < 700;
             final poorSignal = score != null && !score.isReliable;
             final stageColor = poorSignal
-                ? Colors.orangeAccent
+                ? StudioColors.amber
                 : _getStageColor(score?.stage ?? SleepStage.wake);
             return SizedBox(
               height: compact ? 290 : 165,
@@ -1096,7 +1094,7 @@ class _NidraScreenState extends State<NidraScreen>
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
       decoration: BoxDecoration(
-        color: const Color(0xFF172033),
+        color: StudioColors.card,
         borderRadius: BorderRadius.circular(12),
         border: Border.all(color: activeColor.withValues(alpha: 0.35)),
       ),
@@ -1121,7 +1119,7 @@ class _NidraScreenState extends State<NidraScreen>
                 : null,
             hint: const Text(
               'No enabled EEG',
-              style: TextStyle(color: Colors.redAccent),
+              style: TextStyle(color: StudioColors.red),
             ),
             dropdownColor: StudioColors.card,
             style: const TextStyle(color: StudioColors.textPrimary),
@@ -1344,7 +1342,7 @@ class _NidraScreenState extends State<NidraScreen>
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
       decoration: BoxDecoration(
-        color: const Color(0xFF172033),
+        color: StudioColors.card,
         borderRadius: BorderRadius.circular(12),
         border: Border.all(color: activeColor.withValues(alpha: 0.35)),
       ),
@@ -1503,7 +1501,7 @@ class _NidraScreenState extends State<NidraScreen>
                 },
                 child: const Text(
                   'Reset Defaults',
-                  style: TextStyle(color: Colors.orangeAccent),
+                  style: TextStyle(color: StudioColors.amber),
                 ),
               ),
               ElevatedButton(
@@ -1526,7 +1524,7 @@ class _NidraScreenState extends State<NidraScreen>
       return const Text(
         'Artifact epoch — no sleep stage or probability assigned',
         style: TextStyle(
-          color: Colors.orangeAccent,
+          color: StudioColors.amber,
           fontSize: 11,
           fontWeight: FontWeight.w600,
         ),
@@ -1568,7 +1566,7 @@ class _NidraScreenState extends State<NidraScreen>
                         value: entry.$2.clamp(0.0, 1.0),
                         minHeight: 3,
                         color: _getStageColor(entry.$3),
-                        backgroundColor: Colors.white10,
+                        backgroundColor: StudioColors.canvas,
                       ),
                     ],
                   ),
@@ -1704,12 +1702,12 @@ class _NidraScreenState extends State<NidraScreen>
                 padding: const EdgeInsets.all(16),
                 decoration: BoxDecoration(
                   color: stim.flashOn
-                      ? const Color(0xFF7C2D12)
+                      ? StudioColors.amber.withValues(alpha: 0.16)
                       : StudioColors.surface,
                   borderRadius: BorderRadius.circular(14),
                   border: Border.all(
                     color: stim.notificationActive
-                        ? Colors.orangeAccent
+                        ? StudioColors.amber
                         : StudioColors.border,
                     width: stim.notificationActive ? 3 : 1,
                   ),
@@ -1726,9 +1724,9 @@ class _NidraScreenState extends State<NidraScreen>
                               ? Icons.notifications_active
                               : Icons.monitor_heart_outlined,
                           color: stim.isStimulating
-                              ? const Color(0xFF10B981)
+                              ? StudioColors.emerald
                               : stim.notificationActive
-                              ? Colors.orangeAccent
+                              ? StudioColors.amber
                               : StudioColors.textMuted,
                         ),
                         const SizedBox(width: 10),
@@ -1771,7 +1769,7 @@ class _NidraScreenState extends State<NidraScreen>
                                       .clamp(0.0, 1.0),
                               minHeight: 8,
                               color: stim.conditionMet
-                                  ? Colors.orangeAccent
+                                  ? StudioColors.amber
                                   : lightTeal,
                               backgroundColor: StudioColors.border,
                             ),
@@ -2058,7 +2056,7 @@ class _NidraScreenState extends State<NidraScreen>
                                 ),
                                 ElevatedButton.icon(
                                   style: ElevatedButton.styleFrom(
-                                    backgroundColor: const Color(0xFF334155),
+                                    backgroundColor: StudioColors.blue,
                                     foregroundColor: Colors.white,
                                     padding: const EdgeInsets.symmetric(
                                       horizontal: 12,
@@ -2072,7 +2070,8 @@ class _NidraScreenState extends State<NidraScreen>
                                 if (stim.playlist.isNotEmpty)
                                   OutlinedButton.icon(
                                     style: OutlinedButton.styleFrom(
-                                      foregroundColor: const Color(0xFFFCA5A5),
+                                      foregroundColor: StudioColors.red,
+                                      side: const BorderSide(color: StudioColors.red),
                                       padding: const EdgeInsets.symmetric(
                                         horizontal: 10,
                                         vertical: 8,
@@ -2161,15 +2160,14 @@ class _NidraScreenState extends State<NidraScreen>
                                           ),
                                           decoration: BoxDecoration(
                                             color: isSelected
-                                                ? const Color(0xFF0F766E)
-                                                    .withOpacity(0.28)
+                                                ? lightTeal.withValues(alpha: 0.12)
                                                 : StudioColors.card,
                                             borderRadius:
                                                 BorderRadius.circular(10),
                                             border: Border.all(
                                               color: isSelected
                                                   ? lightTeal
-                                                  : Colors.white10,
+                                                  : StudioColors.border,
                                               width: isSelected ? 2 : 1,
                                             ),
                                           ),
@@ -2237,16 +2235,14 @@ class _NidraScreenState extends State<NidraScreen>
                                                 decoration: BoxDecoration(
                                                   color: isSelected
                                                       ? lightTeal
-                                                      : const Color(0xFF334155),
+                                                      : StudioColors.textSecondary,
                                                   borderRadius:
                                                       BorderRadius.circular(6),
                                                 ),
                                                 child: Text(
                                                   '#${index + 1}',
-                                                  style: TextStyle(
-                                                    color: isSelected
-                                                        ? StudioColors.textPrimary
-                                                        : Colors.white,
+                                                  style: const TextStyle(
+                                                    color: Colors.white,
                                                     fontWeight: FontWeight.bold,
                                                     fontSize: 11,
                                                   ),
@@ -2272,7 +2268,7 @@ class _NidraScreenState extends State<NidraScreen>
                                                             style: TextStyle(
                                                               color: isSelected
                                                                   ? lightTeal
-                                                                  : Colors.white,
+                                                                  : StudioColors.textPrimary,
                                                               fontWeight:
                                                                   FontWeight
                                                                       .bold,
@@ -2355,13 +2351,10 @@ class _NidraScreenState extends State<NidraScreen>
                                                     vertical: 4,
                                                   ),
                                                   decoration: BoxDecoration(
-                                                    color: const Color(
-                                                      0xFF1E293B,
-                                                    ),
+                                                    color: StudioColors.sky
+                                                        .withValues(alpha: 0.12),
                                                     border: Border.all(
-                                                      color: const Color(
-                                                        0xFF38BDF8,
-                                                      ),
+                                                      color: StudioColors.sky,
                                                       width: 1,
                                                     ),
                                                     borderRadius:
@@ -2376,9 +2369,7 @@ class _NidraScreenState extends State<NidraScreen>
                                                       Text(
                                                         'Marker: ${cue.markerCode}',
                                                         style: const TextStyle(
-                                                          color: Color(
-                                                            0xFF38BDF8,
-                                                          ),
+                                                          color: StudioColors.sky,
                                                           fontSize: 11,
                                                           fontWeight:
                                                               FontWeight.bold,
@@ -2388,9 +2379,7 @@ class _NidraScreenState extends State<NidraScreen>
                                                       const Icon(
                                                         Icons.edit,
                                                         size: 11,
-                                                        color: Color(
-                                                          0xFF38BDF8,
-                                                        ),
+                                                        color: StudioColors.sky,
                                                       ),
                                                     ],
                                                   ),
@@ -2766,7 +2755,10 @@ class _NidraScreenState extends State<NidraScreen>
             child: const Text('Cancel'),
           ),
           ElevatedButton(
-            style: ElevatedButton.styleFrom(backgroundColor: Colors.redAccent),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: StudioColors.red,
+              foregroundColor: Colors.white,
+            ),
             onPressed: () => Navigator.of(context).pop(true),
             child: const Text('Clear All'),
           ),
@@ -2845,7 +2837,7 @@ class _HypnogramPainter extends CustomPainter {
     final plotHeight = math.max(1.0, size.height - bottomMargin);
     final rowH = plotHeight / stages.length;
     final gridPaint = Paint()
-      ..color = Colors.white.withOpacity(0.06)
+      ..color = StudioColors.border.withValues(alpha: 0.7)
       ..strokeWidth = 1;
 
     for (var i = 0; i <= stages.length; i++) {
@@ -2939,7 +2931,7 @@ class _HypnogramPainter extends CustomPainter {
         final x = leftMargin + plotWidth * (elapsed / elapsedSeconds);
         final isStim = marker.value.toLowerCase().contains('stim');
         final markerColor =
-            isStim ? const Color(0xFFFBBF24) : const Color(0xFF38BDF8);
+            isStim ? StudioColors.amber : StudioColors.sky;
         markerLinePaint.color = markerColor.withValues(alpha: 0.75);
         canvas.drawLine(Offset(x, 0), Offset(x, plotHeight), markerLinePaint);
 
@@ -2991,7 +2983,7 @@ class _StageProbabilityPainter extends CustomPainter {
     final plotWidth = math.max(1.0, size.width - leftMargin);
     final plotHeight = math.max(1.0, size.height - bottomMargin);
     final grid = Paint()
-      ..color = Colors.white.withOpacity(0.08)
+      ..color = StudioColors.border.withValues(alpha: 0.7)
       ..strokeWidth = 1;
 
     for (var tick = 0; tick <= 4; tick++) {
@@ -3078,7 +3070,7 @@ class _StageProbabilityPainter extends CustomPainter {
         canvas.drawCircle(
           Offset(leftMargin, y),
           3,
-          Paint()..color = colors[stage] ?? Colors.white,
+          Paint()..color = colors[stage] ?? StudioColors.textPrimary,
         );
       }
     }
@@ -3094,7 +3086,7 @@ class _StageProbabilityPainter extends CustomPainter {
         final x = leftMargin + plotWidth * (elapsed / elapsedSeconds);
         final isStim = marker.value.toLowerCase().contains('stim');
         final markerColor =
-            isStim ? const Color(0xFFFBBF24) : const Color(0xFF38BDF8);
+            isStim ? StudioColors.amber : StudioColors.sky;
         markerLinePaint.color = markerColor.withValues(alpha: 0.75);
         canvas.drawLine(Offset(x, 0), Offset(x, plotHeight), markerLinePaint);
 

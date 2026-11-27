@@ -219,7 +219,7 @@ class ConnectionStatusBar extends StatelessWidget {
               visualDensity: VisualDensity.compact,
               icon: const Icon(
                 Icons.power_settings_new,
-                color: Color(0xFFFCA5A5),
+                color: StudioColors.red,
                 size: 19,
               ),
               onPressed: () async {
@@ -497,7 +497,7 @@ class _DeviceConnectionDialogState extends State<DeviceConnectionDialog> {
                           : StudioColors.teal,
                       foregroundColor: isScanning
                           ? StudioColors.textPrimary
-                          : Colors.black,
+                          : Colors.white,
                       visualDensity: VisualDensity.compact,
                     ),
                     onPressed: () {
@@ -848,7 +848,7 @@ class _DeviceConnectionDialogState extends State<DeviceConnectionDialog> {
               FilledButton(
                 style: FilledButton.styleFrom(
                   backgroundColor: StudioColors.teal,
-                  foregroundColor: Colors.black,
+                  foregroundColor: Colors.white,
                   visualDensity: VisualDensity.compact,
                 ),
                 onPressed: connecting
@@ -1039,7 +1039,7 @@ class _DeviceConnectionDialogState extends State<DeviceConnectionDialog> {
           FilledButton.icon(
             style: FilledButton.styleFrom(
               backgroundColor: StudioColors.sky,
-              foregroundColor: Colors.black,
+              foregroundColor: Colors.white,
             ),
             onPressed: () {
               eegService.addSyntheticDevice();
@@ -1220,7 +1220,7 @@ class QuickModuleSwitcherModal extends StatelessWidget {
                 FilledButton(
                   style: FilledButton.styleFrom(
                     backgroundColor: StudioColors.emerald,
-                    foregroundColor: Colors.black,
+                    foregroundColor: Colors.white,
                   ),
                   onPressed: () {
                     session.stopRecording();

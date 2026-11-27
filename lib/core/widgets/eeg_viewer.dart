@@ -1617,7 +1617,7 @@ class _EegViewerState extends State<EegViewer>
                                                   color: colorVal,
                                                   shape: BoxShape.circle,
                                                   border: Border.all(
-                                                    color: Colors.white54,
+                                                    color: StudioColors.border,
                                                   ),
                                                 ),
                                               ),
